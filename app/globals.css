@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f4f1e8;
+  --foreground: #111827;
+  --muted: #6b7280;
+  --surface: rgba(255, 255, 255, 0.9);
+  --surface-strong: #ffffff;
+  --border: rgba(17, 24, 39, 0.1);
+  --primary: #0f766e;
+  --primary-foreground: #f8fafc;
+  --danger: #b91c1c;
+  --warning: #b45309;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background:
+    radial-gradient(circle at top left, rgba(15, 118, 110, 0.18), transparent 32%),
+    linear-gradient(180deg, #f7f5ef 0%, #f1ede3 100%);
+}
+
+body {
+  min-height: 100vh;
+  color: var(--foreground);
+  background: transparent;
+  font-family:
+    "IBM Plex Sans",
+    "Segoe UI",
+    sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+::selection {
+  background: rgba(15, 118, 110, 0.2);
+}

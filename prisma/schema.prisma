@@ -1,0 +1,178 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  passwordHash   String
+  displayName    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  cadets               Cadet[]
+  records              CadetRecord[]
+  appointments         Appointment[]
+  paradeStateSnapshots ParadeStateSnapshot[]
+  troopMovements       TroopMovement[]
+  templates            MessageTemplate[]
+  settings             UserSettings?
+}
+
+model UserSettings {
+  id                      String   @id @default(cuid())
+  userId                  String   @unique
+  unitName                String   @default("13/25 C4X")
+  defaultParadePrefix     String?
+  defaultNightPrefix      String?
+  defaultLastParadeText   String?
+  defaultMtrMorningText   String?
+  defaultMtrAfternoonText String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Cadet {
+  id            String   @id @default(cuid())
+  userId        String
+  rank          String   @default("ME4T")
+  displayName   String
+  serviceNumber String?
+  active        Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  records      CadetRecord[]
+  appointments Appointment[]
+
+  @@index([userId, active])
+  @@unique([userId, displayName])
+}
+
+enum RecordCategory {
+  MA_OA
+  MC
+  RSO
+  RSI
+  CL
+  HL
+  OTHER
+  STATUS_RESTRICTION
+}
+
+enum ResolutionState {
+  ACTIVE
+  EXPIRED_PENDING_CONFIRMATION
+  RESOLVED
+}
+
+model CadetRecord {
+  id                 String          @id @default(cuid())
+  userId             String
+  cadetId            String
+  category           RecordCategory
+  title              String?
+  details            String?
+  startAt            DateTime?
+  endAt              DateTime?
+  affectsStrength    Boolean         @default(true)
+  countsNotInCamp    Boolean         @default(false)
+  resolutionState    ResolutionState @default(ACTIVE)
+  resolvedAt         DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  sortOrder          Int             @default(0)
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cadet Cadet @relation(fields: [cadetId], references: [id], onDelete: Cascade)
+
+  @@index([userId, category, resolutionState])
+  @@index([userId, cadetId])
+  @@index([userId, endAt])
+}
+
+model Appointment {
+  id            String   @id @default(cuid())
+  userId        String
+  cadetId       String?
+  title         String
+  venue         String?
+  appointmentAt DateTime
+  notes         String?
+  completed     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cadet Cadet? @relation(fields: [cadetId], references: [id], onDelete: SetNull)
+
+  @@index([userId, appointmentAt, completed])
+}
+
+model ParadeStateSnapshot {
+  id              String   @id @default(cuid())
+  userId          String
+  label           String
+  reportedAt      DateTime
+  totalStrength   Int
+  presentStrength Int
+  finalMessage    String
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, reportedAt])
+}
+
+model TroopMovement {
+  id              String   @id @default(cuid())
+  userId          String
+  fromLocation    String
+  toLocation      String
+  strengthText    String
+  arrivalTimeText String
+  remarks         String
+  finalMessage    String
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+enum TemplateType {
+  PARADE_MORNING
+  PARADE_NIGHT
+  TROOP_MOVEMENT
+  MTR_1030
+  MTR_1630
+  LAST_PARADE_1730
+  BOOK_IN
+}
+
+model MessageTemplate {
+  id        String       @id @default(cuid())
+  userId    String
+  type      TemplateType
+  name      String
+  body      String
+  isDefault Boolean      @default(false)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type, name])
+  @@index([userId, type])
+}
