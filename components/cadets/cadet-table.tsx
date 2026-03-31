@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { deleteCadetAction } from "@/actions/cadets";
 import { CadetForm } from "@/components/cadets/cadet-form";
+import { CadetImportForm } from "@/components/cadets/cadet-import-form";
 
 type CadetRow = {
   id: string;
@@ -31,13 +32,16 @@ export function CadetTable({ cadets }: { cadets: CadetRow[] }) {
               Maintain the active roster, sort order, and baseline identity data.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setEditingCadet({ id: "", rank: "ME4T", displayName: "", serviceNumber: "", active: true, sortOrder: 0, notes: "" })}
-            className="rounded-2xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-teal-800"
-          >
-            New Cadet
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => setEditingCadet({ id: "", rank: "ME4T", displayName: "", serviceNumber: "", active: true, sortOrder: 0, notes: "" })}
+              className="rounded-2xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-teal-800"
+            >
+              New Cadet
+            </button>
+            <CadetImportForm />
+          </div>
         </div>
       </section>
 
