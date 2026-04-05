@@ -8,7 +8,12 @@ import {
   TemplateType,
 } from "@prisma/client";
 
-import { formatCompactDmyHm, getSingaporeDayBounds } from "@/lib/date";
+import {
+  formatCompactDmyHm,
+  getSingaporeDayBounds,
+  getSingaporeStrengthPeriod,
+  type StrengthPeriod,
+} from "@/lib/date";
 import { type BookInInput } from "@/lib/generators/book-in";
 import { buildParadeCaaLine, type ParadeStateInput } from "@/lib/generators/parade-state";
 import { renderTemplate } from "@/lib/formatting";
@@ -21,6 +26,20 @@ import {
 import { DEFAULT_SETTINGS_VALUES, DEFAULT_TEMPLATE_BODIES, DEFAULT_TEMPLATE_DEFINITIONS } from "@/lib/templates";
 
 type OperationalRecordWithCadet = Prisma.CadetRecordGetPayload<{
+  include: {
+    cadet: {
+      select: {
+        id: true;
+        rank: true;
+        displayName: true;
+        active: true;
+        sortOrder: true;
+      };
+    };
+  };
+}>;
+
+type AppointmentWithCadet = Prisma.AppointmentGetPayload<{
   include: {
     cadet: {
       select: {
@@ -48,6 +67,16 @@ function sortOperationalRecords(records: OperationalRecordWithCadet[]) {
       left.cadet.displayName.localeCompare(right.cadet.displayName) ||
       left.sortOrder - right.sortOrder ||
       left.createdAt.getTime() - right.createdAt.getTime(),
+  );
+}
+
+function sortAppointments(appointments: AppointmentWithCadet[]) {
+  return [...appointments].sort(
+    (left, right) =>
+      left.appointmentAt.getTime() - right.appointmentAt.getTime() ||
+      (left.cadet?.sortOrder ?? Number.MAX_SAFE_INTEGER) -
+        (right.cadet?.sortOrder ?? Number.MAX_SAFE_INTEGER) ||
+      (left.cadet?.displayName ?? "").localeCompare(right.cadet?.displayName ?? ""),
   );
 }
 
@@ -79,17 +108,33 @@ function buildRecordDetails(record: Pick<CadetRecord, "title" | "details">) {
   return title || details || undefined;
 }
 
+function buildAppointmentSummary(
+  appointment: Pick<AppointmentWithCadet, "title" | "venue" | "appointmentAt">,
+) {
+  const title = appointment.title.trim();
+  const venue = appointment.venue?.trim() ?? "";
+  const subject =
+    title && venue
+      ? title.toLowerCase().includes(venue.toLowerCase())
+        ? title
+        : `${venue} ${title}`
+      : title || venue || "Appointment";
+
+  return `${subject} (${formatCompactDmyHm(appointment.appointmentAt)})`;
+}
+
 function toNamedRecordItem(record: OperationalRecordWithCadet) {
   return {
     rank: record.cadet.rank,
     name: record.cadet.displayName,
     details: buildRecordDetails(record),
+    startAt: record.startAt,
+    endAt: record.endAt,
   };
 }
 
 function groupOperationalRecords(records: OperationalRecordWithCadet[]) {
   return {
-    ma_oa: records.filter((record) => record.category === RecordCategory.MA_OA).map(toNamedRecordItem),
     mc: records.filter((record) => record.category === RecordCategory.MC).map(toNamedRecordItem),
     rso: records.filter((record) => record.category === RecordCategory.RSO).map(toNamedRecordItem),
     rsi: records.filter((record) => record.category === RecordCategory.RSI).map(toNamedRecordItem),
@@ -100,6 +145,110 @@ function groupOperationalRecords(records: OperationalRecordWithCadet[]) {
     status: records
       .filter((record) => record.category === RecordCategory.STATUS_RESTRICTION)
       .map(toNamedRecordItem),
+  };
+}
+
+function inferStrengthPeriod(
+  reportAt: Date,
+  reportType?: "Morning" | "Night" | "Custom",
+  reportTimeLabel?: string | null,
+): StrengthPeriod {
+  if (reportType === "Morning") {
+    return "morning";
+  }
+
+  if (reportType === "Night") {
+    return "evening";
+  }
+
+  const normalizedLabel = reportTimeLabel?.trim().toLowerCase() ?? "";
+
+  if (normalizedLabel.includes("morning") || normalizedLabel.includes("am")) {
+    return "morning";
+  }
+
+  if (normalizedLabel.includes("afternoon") || normalizedLabel.includes("pm")) {
+    return "afternoon";
+  }
+
+  if (normalizedLabel.includes("night") || normalizedLabel.includes("evening")) {
+    return "evening";
+  }
+
+  return getSingaporeStrengthPeriod(reportAt);
+}
+
+function appointmentAffectsStrength(appointment: AppointmentWithCadet, period: StrengthPeriod) {
+  if (period === "morning") {
+    return appointment.affectsMorningStrength;
+  }
+
+  if (period === "afternoon") {
+    return appointment.affectsAfternoonStrength;
+  }
+
+  return appointment.affectsEveningStrength;
+}
+
+function getAppointmentStrengthCadetIds(
+  appointments: AppointmentWithCadet[],
+  reportAt: Date,
+  reportType?: "Morning" | "Night" | "Custom",
+  reportTimeLabel?: string | null,
+) {
+  const { start, end } = getSingaporeDayBounds(reportAt);
+  const strengthPeriod = inferStrengthPeriod(reportAt, reportType, reportTimeLabel);
+
+  return new Set(
+    appointments
+      .filter(
+        (appointment) =>
+          appointment.cadetId &&
+          appointment.cadet?.active &&
+          appointment.appointmentAt >= start &&
+          appointment.appointmentAt <= end &&
+          appointmentAffectsStrength(appointment, strengthPeriod),
+      )
+      .map((appointment) => appointment.cadetId as string),
+  );
+}
+
+function splitAppointmentsForParade(
+  appointments: AppointmentWithCadet[],
+  reportAt: Date,
+  reportType?: "Morning" | "Night" | "Custom",
+  reportTimeLabel?: string | null,
+) {
+  const { start, end } = getSingaporeDayBounds(reportAt);
+  const eligibleAppointments = sortAppointments(
+    appointments.filter((appointment) => appointment.cadetId && appointment.cadet?.active),
+  );
+
+  return {
+    maOaAppointments: eligibleAppointments
+      .filter((appointment) => appointment.appointmentAt >= start && appointment.appointmentAt <= end)
+      .map((appointment) => ({
+        rank: appointment.cadet?.rank ?? "N/A",
+        name: appointment.cadet?.displayName ?? "Unknown",
+        title: appointment.title,
+        venue: appointment.venue,
+        appointmentAt: appointment.appointmentAt,
+      })),
+    upcomingAppointments: eligibleAppointments
+      .filter((appointment) => appointment.appointmentAt > end)
+      .map((appointment) => ({
+        rank: appointment.cadet?.rank ?? "N/A",
+        name: appointment.cadet?.displayName ?? "Unknown",
+        title: appointment.title,
+        venue: appointment.venue,
+        appointmentAt: appointment.appointmentAt,
+      })),
+    affectingCadetIds: getAppointmentStrengthCadetIds(
+      eligibleAppointments,
+      reportAt,
+      reportType,
+      reportTimeLabel,
+    ),
   };
 }
 
@@ -185,12 +334,14 @@ export async function ensureUserConfiguration(userId: string) {
 }
 
 export async function syncExpiredRecordStates(userId: string, now = new Date()) {
+  const { start: todayStart } = getSingaporeDayBounds(now);
+
   await prisma.cadetRecord.updateMany({
     where: {
       userId,
       resolutionState: ResolutionState.ACTIVE,
       endAt: {
-        lt: now,
+        lt: todayStart,
       },
     },
     data: {
@@ -358,6 +509,30 @@ export async function getUpcomingAppointments(userId: string, from: Date, to: Da
   return appointments;
 }
 
+async function getPendingAppointmentsFrom(userId: string, from: Date) {
+  return prisma.appointment.findMany({
+    where: {
+      userId,
+      completed: false,
+      appointmentAt: {
+        gte: from,
+      },
+    },
+    include: {
+      cadet: {
+        select: {
+          id: true,
+          rank: true,
+          displayName: true,
+          active: true,
+          sortOrder: true,
+        },
+      },
+    },
+    orderBy: [{ appointmentAt: "asc" }],
+  });
+}
+
 export async function getAppointments(userId: string) {
   return prisma.appointment.findMany({
     where: { userId },
@@ -376,15 +551,22 @@ export async function getAppointments(userId: string) {
   });
 }
 
-export async function computeStrengthSummary(userId: string) {
+export async function computeStrengthSummary(userId: string, now = new Date()) {
   const { activeCadets, operationalRecords } = await getOperationalDataset(userId);
+  const { start, end } = getSingaporeDayBounds(now);
+  const todayAppointments = await getUpcomingAppointments(userId, start, end);
 
-  const absentCadetIds = buildAbsentCadetIds(
+  const operationalAbsentCadetIds = buildAbsentCadetIds(
     operationalRecords.map((record) => ({
       cadetId: record.cadetId,
       affectsStrength: record.affectsStrength,
     })),
   );
+  const appointmentAbsentCadetIds = getAppointmentStrengthCadetIds(todayAppointments, now);
+  const absentCadetIds = new Set([
+    ...operationalAbsentCadetIds,
+    ...appointmentAbsentCadetIds,
+  ]);
 
   const totalStrength = activeCadets.length;
   const presentStrength = totalStrength - absentCadetIds.size;
@@ -418,15 +600,25 @@ export async function buildParadeStateInput(
     getUserSettings(userId),
   ]);
 
-  const { start, end } = getSingaporeDayBounds(reportAt);
-  const upcomingAppointments = await getUpcomingAppointments(userId, start, end);
+  const { start } = getSingaporeDayBounds(reportAt);
+  const pendingAppointments = await getPendingAppointmentsFrom(userId, start);
 
-  const absentCadetIds = buildAbsentCadetIds(
+  const operationalAbsentCadetIds = buildAbsentCadetIds(
     operationalRecords.map((record) => ({
       cadetId: record.cadetId,
       affectsStrength: record.affectsStrength,
     })),
   );
+  const appointmentBuckets = splitAppointmentsForParade(
+    pendingAppointments,
+    reportAt,
+    options?.reportType,
+    options?.reportTimeLabel,
+  );
+  const absentCadetIds = new Set([
+    ...operationalAbsentCadetIds,
+    ...appointmentBuckets.affectingCadetIds,
+  ]);
 
   const prefixTemplate =
     options?.prefixOverride?.trim() ||
@@ -451,14 +643,8 @@ export async function buildParadeStateInput(
       })),
     ),
     groupedRecords: groupOperationalRecords(operationalRecords),
-    upcomingAppointments: upcomingAppointments
-      .filter((appointment) => appointment.cadet?.active)
-      .map((appointment) => ({
-        rank: appointment.cadet?.rank ?? "N/A",
-        name: appointment.cadet?.displayName ?? "Unknown",
-        title: appointment.title,
-        appointmentAt: appointment.appointmentAt,
-      })),
+    maOaAppointments: appointmentBuckets.maOaAppointments,
+    upcomingAppointments: appointmentBuckets.upcomingAppointments,
   };
 }
 
@@ -467,22 +653,36 @@ export async function buildBookInInput(userId: string): Promise<BookInInput> {
     getOperationalDataset(userId),
     getUserSettings(userId),
   ]);
+  const { start, end } = getSingaporeDayBounds();
+  const todayAppointments = await getUpcomingAppointments(userId, start, end);
 
-  const absentCadetIds = buildAbsentCadetIds(
+  const operationalAbsentCadetIds = buildAbsentCadetIds(
     operationalRecords.map((record) => ({
       cadetId: record.cadetId,
       affectsStrength: record.affectsStrength,
     })),
   );
+  const appointmentAbsentCadetIds = getAppointmentStrengthCadetIds(todayAppointments, new Date());
+  const absentCadetIds = new Set([
+    ...operationalAbsentCadetIds,
+    ...appointmentAbsentCadetIds,
+  ]);
 
   const groupedRecords = groupOperationalRecords(operationalRecords);
+  const maOaAppointments = sortAppointments(
+    todayAppointments.filter((appointment) => appointment.cadetId && appointment.cadet?.active),
+  ).map((appointment) => ({
+    rank: appointment.cadet?.rank ?? "N/A",
+    name: appointment.cadet?.displayName ?? "Unknown",
+    details: buildAppointmentSummary(appointment),
+  }));
 
   return {
     unitName: settings.unitName,
     totalStrength: activeCadets.length,
     presentStrength: activeCadets.length - absentCadetIds.size,
     groupedRecords: {
-      ma_oa: groupedRecords.ma_oa,
+      ma_oa: maOaAppointments,
       mc: groupedRecords.mc,
       rso: groupedRecords.rso,
       rsi: groupedRecords.rsi,
@@ -580,7 +780,7 @@ export async function buildTroopMovementContext(userId: string) {
     .map((record) => {
       const detail = buildRecordDetails(record);
       const categoryLabel =
-        record.category === RecordCategory.STATUS_RESTRICTION ? "Restriction" : record.category;
+        record.category === RecordCategory.STATUS_RESTRICTION ? "Status" : record.category;
 
       return `${record.cadet.rank} ${record.cadet.displayName} - ${categoryLabel}${
         detail ? ` (${detail})` : ""

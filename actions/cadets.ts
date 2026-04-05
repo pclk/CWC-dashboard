@@ -2,12 +2,12 @@
 
 import type { Prisma } from "@prisma/client";
 
+import { failure, parseCheckbox, parseNumber, parseOptionalString, revalidateOperationalPages, success, type ActionResult } from "@/actions/helpers";
+import { parseCadetCsv, type ParsedCadetCsvRow } from "@/lib/cadet-csv";
 import { assertCadetOwnership } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { parseCadetCsv, type ParsedCadetCsvRow } from "@/lib/cadet-csv";
 import { cadetDeleteSchema, cadetSchema } from "@/lib/validators/cadet";
-import { failure, parseCheckbox, parseNumber, parseOptionalString, revalidateOperationalPages, success, type ActionResult } from "@/actions/helpers";
 
 export async function upsertCadetAction(formData: FormData): Promise<ActionResult> {
   const userId = await requireUser();
@@ -16,7 +16,6 @@ export async function upsertCadetAction(formData: FormData): Promise<ActionResul
     id: parseOptionalString(formData.get("id")) || undefined,
     rank: parseOptionalString(formData.get("rank")),
     displayName: parseOptionalString(formData.get("displayName")),
-    serviceNumber: parseOptionalString(formData.get("serviceNumber")),
     active: parseCheckbox(formData.get("active")),
     sortOrder: parseNumber(formData.get("sortOrder")),
     notes: parseOptionalString(formData.get("notes")),
@@ -36,7 +35,6 @@ export async function upsertCadetAction(formData: FormData): Promise<ActionResul
       data: {
         rank: parsed.data.rank,
         displayName: parsed.data.displayName,
-        serviceNumber: parsed.data.serviceNumber || null,
         active: parsed.data.active,
         sortOrder: parsed.data.sortOrder,
         notes: parsed.data.notes || null,
@@ -48,7 +46,6 @@ export async function upsertCadetAction(formData: FormData): Promise<ActionResul
         userId,
         rank: parsed.data.rank,
         displayName: parsed.data.displayName,
-        serviceNumber: parsed.data.serviceNumber || null,
         active: parsed.data.active,
         sortOrder: parsed.data.sortOrder,
         notes: parsed.data.notes || null,
@@ -105,7 +102,9 @@ export async function importCadetsCsvAction(formData: FormData): Promise<ActionR
   }
 
   try {
-    const { createdCount, updatedCount } = await prisma.$transaction((tx) => importCadetRows(tx, userId, rows));
+    const { createdCount, updatedCount } = await prisma.$transaction((tx) =>
+      importCadetRows(tx, userId, rows),
+    );
 
     revalidateOperationalPages();
     return success(
@@ -119,7 +118,6 @@ export async function importCadetsCsvAction(formData: FormData): Promise<ActionR
 type CadetIdentity = {
   id: string;
   displayName: string;
-  serviceNumber: string | null;
 };
 
 async function importCadetRows(tx: Prisma.TransactionClient, userId: string, rows: ParsedCadetCsvRow[]) {
@@ -128,46 +126,27 @@ async function importCadetRows(tx: Prisma.TransactionClient, userId: string, row
     select: {
       id: true,
       displayName: true,
-      serviceNumber: true,
     },
   });
 
   const cadetsByDisplayName = new Map<string, CadetIdentity>();
-  const cadetsByServiceNumber = new Map<string, CadetIdentity>();
   const seenDisplayNames = new Map<string, number>();
-  const seenServiceNumbers = new Map<string, number>();
   let createdCount = 0;
   let updatedCount = 0;
 
   for (const cadet of existingCadets) {
-    addIdentity(cadetsByDisplayName, cadet.displayName, cadet, "displayName");
-    addIdentity(cadetsByServiceNumber, cadet.serviceNumber, cadet, "serviceNumber");
+    addIdentity(cadetsByDisplayName, cadet.displayName, cadet);
   }
 
   for (const row of rows) {
-    trackDuplicateRowValue(seenDisplayNames, row.displayName, row.lineNumber, "displayName");
-    trackDuplicateRowValue(seenServiceNumbers, row.serviceNumber, row.lineNumber, "serviceNumber");
+    trackDuplicateRowValue(seenDisplayNames, row.displayName, row.lineNumber);
   }
 
   for (const row of rows) {
-    const matchedByServiceNumber = row.serviceNumber ? cadetsByServiceNumber.get(row.serviceNumber) : undefined;
-    const matchedByDisplayName = cadetsByDisplayName.get(row.displayName);
-
-    if (
-      matchedByServiceNumber &&
-      matchedByDisplayName &&
-      matchedByServiceNumber.id !== matchedByDisplayName.id
-    ) {
-      throw new Error(
-        `Line ${row.lineNumber}: service number and display name match different existing cadets. Resolve the roster conflict before importing.`,
-      );
-    }
-
-    const existingCadet = matchedByServiceNumber ?? matchedByDisplayName;
+    const existingCadet = cadetsByDisplayName.get(row.displayName);
 
     if (existingCadet) {
       const previousDisplayName = existingCadet.displayName;
-      const previousServiceNumber = existingCadet.serviceNumber;
 
       await tx.cadet.update({
         where: {
@@ -178,18 +157,12 @@ async function importCadetRows(tx: Prisma.TransactionClient, userId: string, row
 
       cadetsByDisplayName.delete(previousDisplayName);
 
-      if (previousServiceNumber) {
-        cadetsByServiceNumber.delete(previousServiceNumber);
-      }
-
       const nextIdentity = {
         id: existingCadet.id,
         displayName: row.displayName,
-        serviceNumber: row.serviceNumber || null,
       };
 
-      addIdentity(cadetsByDisplayName, nextIdentity.displayName, nextIdentity, "displayName");
-      addIdentity(cadetsByServiceNumber, nextIdentity.serviceNumber, nextIdentity, "serviceNumber");
+      addIdentity(cadetsByDisplayName, nextIdentity.displayName, nextIdentity);
       updatedCount += 1;
       continue;
     }
@@ -202,12 +175,10 @@ async function importCadetRows(tx: Prisma.TransactionClient, userId: string, row
       select: {
         id: true,
         displayName: true,
-        serviceNumber: true,
       },
     });
 
-    addIdentity(cadetsByDisplayName, createdCadet.displayName, createdCadet, "displayName");
-    addIdentity(cadetsByServiceNumber, createdCadet.serviceNumber, createdCadet, "serviceNumber");
+    addIdentity(cadetsByDisplayName, createdCadet.displayName, createdCadet);
     createdCount += 1;
   }
 
@@ -221,19 +192,13 @@ function buildCadetData(row: ParsedCadetCsvRow) {
   return {
     rank: row.rank,
     displayName: row.displayName,
-    serviceNumber: row.serviceNumber || null,
     active: row.active,
     sortOrder: row.sortOrder,
     notes: row.notes || null,
   };
 }
 
-function addIdentity(
-  store: Map<string, CadetIdentity>,
-  value: string | null | undefined,
-  cadet: CadetIdentity,
-  label: "displayName" | "serviceNumber",
-) {
+function addIdentity(store: Map<string, CadetIdentity>, value: string | null | undefined, cadet: CadetIdentity) {
   if (!value) {
     return;
   }
@@ -241,18 +206,13 @@ function addIdentity(
   const existingCadet = store.get(value);
 
   if (existingCadet && existingCadet.id !== cadet.id) {
-    throw new Error(`Multiple existing cadets share ${label} "${value}". Resolve that duplicate before importing.`);
+    throw new Error(`Multiple existing cadets share displayName "${value}". Resolve that duplicate before importing.`);
   }
 
   store.set(value, cadet);
 }
 
-function trackDuplicateRowValue(
-  seenValues: Map<string, number>,
-  value: string | undefined,
-  lineNumber: number,
-  label: "displayName" | "serviceNumber",
-) {
+function trackDuplicateRowValue(seenValues: Map<string, number>, value: string | undefined, lineNumber: number) {
   if (!value) {
     return;
   }
@@ -260,7 +220,7 @@ function trackDuplicateRowValue(
   const previousLineNumber = seenValues.get(value);
 
   if (previousLineNumber) {
-    throw new Error(`CSV contains duplicate ${label} "${value}" on lines ${previousLineNumber} and ${lineNumber}.`);
+    throw new Error(`CSV contains duplicate displayName "${value}" on lines ${previousLineNumber} and ${lineNumber}.`);
   }
 
   seenValues.set(value, lineNumber);

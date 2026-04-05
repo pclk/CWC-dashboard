@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import { CopyShareBar } from "@/components/generators/copy-share-bar";
 
@@ -28,6 +28,7 @@ export function MessageEditor({
   const [dirty, setDirty] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (!dirty) {
@@ -39,6 +40,15 @@ export function MessageEditor({
       return () => window.clearTimeout(timeoutId);
     }
   }, [initialGeneratedText, dirty]);
+
+  useEffect(() => {
+    if (!textareaRef.current) {
+      return;
+    }
+
+    textareaRef.current.style.height = "0px";
+    textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+  }, [editorText]);
 
   function onChange(value: string) {
     setEditorText(value);
@@ -68,10 +78,11 @@ export function MessageEditor({
       </div>
 
       <textarea
+        ref={textareaRef}
         value={editorText}
         onChange={(event) => onChange(event.target.value)}
-        rows={18}
-        className="mt-4 min-h-[22rem] w-full rounded-[1.5rem] border border-black/10 bg-white px-4 py-4 font-mono text-sm leading-6 outline-none focus:border-teal-700"
+        rows={1}
+        className="mt-4 w-full resize-none overflow-hidden rounded-[1.5rem] border border-black/10 bg-white px-4 py-4 font-mono text-sm leading-6 outline-none focus:border-teal-700"
       />
 
       {status ? (

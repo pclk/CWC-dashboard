@@ -1,17 +1,22 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
-import { deleteParadeStateSnapshotAction, saveParadeStateSnapshotAction } from "@/actions/parade-state";
-import { MessageEditor } from "@/components/generators/message-editor";
-import { formatCompactDmyHm, formatDateTimeInputValue, parseSingaporeInputToUtc } from "@/lib/date";
+import { updateParadeDraftAction } from "@/actions/generator-drafts";
 import {
-  buildParadeCaaLine,
-  generateParadeStateMessage,
-  type ParadeStateInput,
-} from "@/lib/generators/parade-state";
-import { buildTextPreview, renderTemplate } from "@/lib/formatting";
+  deleteParadeStateSnapshotAction,
+  previewParadeStateAction,
+  saveParadeStateSnapshotAction,
+} from "@/actions/parade-state";
+import { MessageEditor } from "@/components/generators/message-editor";
+import {
+  formatCompactDateTimeInputValue,
+  formatCompactDmyHm,
+  parseSingaporeInputToUtc,
+} from "@/lib/date";
+import { generateParadeStateMessage, type ParadeStateInput } from "@/lib/generators/parade-state";
+import { buildTextPreview } from "@/lib/formatting";
 
 type SnapshotRow = {
   id: string;
@@ -22,53 +27,175 @@ type SnapshotRow = {
   finalMessage: string;
 };
 
+type PreviewState = {
+  generatedText: string;
+  totalStrength: number;
+  presentStrength: number;
+  maOaAppointmentCount: number;
+  upcomingAppointmentCount: number;
+};
+
 export function ParadeStatePreview({
   initialInput,
   morningTemplate,
   nightTemplate,
-  defaultMorningPrefix,
-  defaultNightPrefix,
+  initialReportType,
+  initialReportAtValue,
+  initialReportTimeLabel,
+  initialPrefixOverride,
   dueConfirmationCount,
   history,
 }: {
   initialInput: ParadeStateInput;
   morningTemplate: string;
   nightTemplate: string;
-  defaultMorningPrefix: string;
-  defaultNightPrefix: string;
+  initialReportType: "Morning" | "Night" | "Custom";
+  initialReportAtValue?: string | null;
+  initialReportTimeLabel: string;
+  initialPrefixOverride: string;
   dueConfirmationCount: number;
   history: SnapshotRow[];
 }) {
   const router = useRouter();
   const [view, setView] = useState<"generator" | "history">("generator");
-  const [reportType, setReportType] = useState<"Morning" | "Night" | "Custom">("Morning");
-  const [reportAtValue, setReportAtValue] = useState(formatDateTimeInputValue(new Date()));
-  const [reportTimeLabel, setReportTimeLabel] = useState("Morning");
-  const [prefixOverride, setPrefixOverride] = useState("");
+  const [draftPending, startDraftTransition] = useTransition();
+  const [previewPending, startPreviewTransition] = useTransition();
+  const resolvedInitialReportAtValue = resolveInitialReportAtValue(initialReportAtValue);
+  const [reportType, setReportType] = useState<"Morning" | "Night" | "Custom">(initialReportType);
+  const [reportAtValue, setReportAtValue] = useState(resolvedInitialReportAtValue);
+  const [reportTimeLabel, setReportTimeLabel] = useState(initialReportTimeLabel);
+  const [prefixOverride, setPrefixOverride] = useState(initialPrefixOverride);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [openSnapshotId, setOpenSnapshotId] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [previewState, setPreviewState] = useState<PreviewState>(() => ({
+    generatedText: generateParadeStateMessage(
+      initialInput,
+      initialReportType === "Night" ? nightTemplate : morningTemplate,
+    ),
+    totalStrength: initialInput.totalStrength,
+    presentStrength: initialInput.presentStrength,
+    maOaAppointmentCount: initialInput.maOaAppointments.length,
+    upcomingAppointmentCount: initialInput.upcomingAppointments.length,
+  }));
+  const lastSavedDraftRef = useRef(
+    JSON.stringify({
+      reportType: initialReportType,
+      reportAtValue: resolvedInitialReportAtValue,
+      reportTimeLabel: initialReportTimeLabel,
+      prefixOverride: initialPrefixOverride,
+    }),
+  );
+  const lastPreviewRequestRef = useRef(
+    JSON.stringify({
+      reportType: initialReportType,
+      reportAtValue: resolvedInitialReportAtValue,
+      reportTimeLabel: initialReportTimeLabel,
+      prefixOverride: initialPrefixOverride,
+    }),
+  );
 
-  function buildInput(): ParadeStateInput {
-    const reportAt = parseSingaporeInputToUtc(reportAtValue) ?? new Date();
-    const prefixTemplate =
-      prefixOverride.trim() ||
-      (reportType === "Night" ? defaultNightPrefix : defaultMorningPrefix);
+  useEffect(() => {
+    const nextDraft = JSON.stringify({
+      reportType,
+      reportAtValue,
+      reportTimeLabel,
+      prefixOverride,
+    });
 
-    return {
-      ...initialInput,
-      prefix: renderTemplate(prefixTemplate, {
-        unitName: initialInput.unitName,
-        reportAt: formatCompactDmyHm(reportAt),
-      }),
-      caaLine: buildParadeCaaLine(reportAt, reportTimeLabel),
-    };
+    if (nextDraft === lastSavedDraftRef.current) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      startDraftTransition(async () => {
+        const result = await updateParadeDraftAction({
+          reportType,
+          reportAtValue,
+          reportTimeLabel,
+          prefixOverride,
+        });
+
+        if (result.ok) {
+          lastSavedDraftRef.current = nextDraft;
+        }
+      });
+    }, 500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [prefixOverride, reportAtValue, reportTimeLabel, reportType, startDraftTransition]);
+
+  useEffect(() => {
+    const nextRequest = JSON.stringify({
+      reportType,
+      reportAtValue,
+      reportTimeLabel,
+      prefixOverride,
+    });
+
+    if (nextRequest === lastPreviewRequestRef.current) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      startPreviewTransition(async () => {
+        const result = await previewParadeStateAction({
+          reportType,
+          reportAtValue,
+          reportTimeLabel,
+          prefixOverride,
+        });
+
+        if (!result.ok) {
+          setPreviewError(result.error);
+          return;
+        }
+
+        lastPreviewRequestRef.current = nextRequest;
+        setPreviewError(null);
+        setPreviewState({
+          generatedText: result.generatedText,
+          totalStrength: result.totalStrength,
+          presentStrength: result.presentStrength,
+          maOaAppointmentCount: result.maOaAppointmentCount,
+          upcomingAppointmentCount: result.upcomingAppointmentCount,
+        });
+      });
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [prefixOverride, reportAtValue, reportTimeLabel, reportType, startPreviewTransition]);
+
+  async function regeneratePreview() {
+    const nextRequest = JSON.stringify({
+      reportType,
+      reportAtValue,
+      reportTimeLabel,
+      prefixOverride,
+    });
+    const result = await previewParadeStateAction({
+      reportType,
+      reportAtValue,
+      reportTimeLabel,
+      prefixOverride,
+    });
+
+    if (!result.ok) {
+      setPreviewError(result.error);
+      return previewState.generatedText;
+    }
+
+    setPreviewError(null);
+    lastPreviewRequestRef.current = nextRequest;
+    setPreviewState({
+      generatedText: result.generatedText,
+      totalStrength: result.totalStrength,
+      presentStrength: result.presentStrength,
+      maOaAppointmentCount: result.maOaAppointmentCount,
+      upcomingAppointmentCount: result.upcomingAppointmentCount,
+    });
+
+    return result.generatedText;
   }
-
-  function getTemplateBody() {
-    return reportType === "Night" ? nightTemplate : morningTemplate;
-  }
-
-  const initialGeneratedText = generateParadeStateMessage(buildInput(), getTemplateBody());
 
   return (
     <div className="space-y-4">
@@ -128,11 +255,15 @@ export function ParadeStatePreview({
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-slate-700">Report Date</label>
                 <input
-                  type="datetime-local"
+                  type="text"
                   value={reportAtValue}
                   onChange={(event) => setReportAtValue(event.target.value)}
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder="DDMMYY HHMM"
                   className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
                 />
+                <p className="text-xs text-slate-500">Use DDMMYY HHMM. Example: 300326 0900.</p>
               </div>
 
               <div className="space-y-2">
@@ -154,45 +285,76 @@ export function ParadeStatePreview({
                 />
               </div>
             </div>
+
+            {previewError ? (
+              <p className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">
+                {previewError}
+              </p>
+            ) : null}
           </section>
 
-          <section className="grid gap-4 lg:grid-cols-4">
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <div className="rounded-[2rem] border border-black/10 bg-white/90 p-5 shadow-sm">
               <p className="text-sm text-slate-500">Present Strength</p>
-              <p className="mt-2 text-3xl font-semibold text-slate-900">{initialInput.presentStrength}</p>
+              <p className="mt-2 text-3xl font-semibold text-slate-900">
+                {previewState.presentStrength}
+              </p>
             </div>
             <div className="rounded-[2rem] border border-black/10 bg-white/90 p-5 shadow-sm">
               <p className="text-sm text-slate-500">Total Strength</p>
-              <p className="mt-2 text-3xl font-semibold text-slate-900">{initialInput.totalStrength}</p>
+              <p className="mt-2 text-3xl font-semibold text-slate-900">
+                {previewState.totalStrength}
+              </p>
             </div>
             <div className="rounded-[2rem] border border-black/10 bg-white/90 p-5 shadow-sm">
               <p className="text-sm text-slate-500">Due Confirmations</p>
               <p className="mt-2 text-3xl font-semibold text-slate-900">{dueConfirmationCount}</p>
             </div>
             <div className="rounded-[2rem] border border-black/10 bg-white/90 p-5 shadow-sm">
-              <p className="text-sm text-slate-500">Today’s Appointments</p>
+              <p className="text-sm text-slate-500">MA/OA</p>
               <p className="mt-2 text-3xl font-semibold text-slate-900">
-                {initialInput.upcomingAppointments.length}
+                {previewState.maOaAppointmentCount}
+              </p>
+            </div>
+            <div className="rounded-[2rem] border border-black/10 bg-white/90 p-5 shadow-sm">
+              <p className="text-sm text-slate-500">Upcoming Appointments</p>
+              <p className="mt-2 text-3xl font-semibold text-slate-900">
+                {previewState.upcomingAppointmentCount}
               </p>
             </div>
           </section>
 
           <MessageEditor
-            initialGeneratedText={initialGeneratedText}
-            getRegeneratedText={() => generateParadeStateMessage(buildInput(), getTemplateBody())}
+            initialGeneratedText={previewState.generatedText}
+            getRegeneratedText={regeneratePreview}
             onSave={async (text) => {
-              const reportAt = parseSingaporeInputToUtc(reportAtValue) ?? new Date();
+              let reportAt: Date;
+
+              try {
+                reportAt = parseSingaporeInputToUtc(reportAtValue) ?? new Date();
+              } catch (error) {
+                return {
+                  ok: false,
+                  error:
+                    error instanceof Error
+                      ? error.message
+                      : "Invalid parade report date and time.",
+                };
+              }
 
               return saveParadeStateSnapshotAction({
                 label: reportType,
                 reportedAt: reportAt,
-                totalStrength: initialInput.totalStrength,
-                presentStrength: initialInput.presentStrength,
+                totalStrength: previewState.totalStrength,
+                presentStrength: previewState.presentStrength,
                 finalMessage: text,
               });
             }}
             saveLabel="Save Snapshot"
           />
+
+          {draftPending ? <p className="text-xs text-slate-500">Saving draft...</p> : null}
+          {previewPending ? <p className="text-xs text-slate-500">Refreshing preview...</p> : null}
         </>
       ) : (
         <section className="rounded-[2rem] border border-black/10 bg-white/95 p-5 shadow-sm">
@@ -233,13 +395,13 @@ export function ParadeStatePreview({
                       </button>
                       <button
                         type="button"
-                        disabled={pending}
+                        disabled={draftPending || previewPending}
                         onClick={() => {
                           if (!window.confirm("Delete this snapshot?")) {
                             return;
                           }
 
-                          startTransition(async () => {
+                          startDraftTransition(async () => {
                             const result = await deleteParadeStateSnapshotAction({ id: snapshot.id });
 
                             if (result.ok) {
@@ -271,4 +433,16 @@ export function ParadeStatePreview({
       )}
     </div>
   );
+}
+
+function resolveInitialReportAtValue(initialValue?: string | null) {
+  if (!initialValue?.trim()) {
+    return formatCompactDateTimeInputValue(new Date());
+  }
+
+  try {
+    return formatCompactDateTimeInputValue(parseSingaporeInputToUtc(initialValue) ?? new Date());
+  } catch {
+    return formatCompactDateTimeInputValue(new Date());
+  }
 }

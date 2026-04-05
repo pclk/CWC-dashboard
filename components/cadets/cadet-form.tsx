@@ -9,7 +9,6 @@ type CadetFormValues = {
   id?: string;
   rank: string;
   displayName: string;
-  serviceNumber?: string | null;
   active: boolean;
   sortOrder: number;
   notes?: string | null;
@@ -85,15 +84,6 @@ export function CadetForm({
             name="displayName"
             defaultValue={cadet?.displayName ?? ""}
             required
-            className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-slate-700">Service Number</label>
-          <input
-            name="serviceNumber"
-            defaultValue={cadet?.serviceNumber ?? ""}
             className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
           />
         </div>

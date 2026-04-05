@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
+import { updateAnnouncementDraftAction } from "@/actions/generator-drafts";
 import { MessageEditor } from "@/components/generators/message-editor";
 import {
   generateLastParadeMessage,
@@ -9,52 +10,61 @@ import {
 } from "@/lib/generators/announcements";
 
 type AnnouncementPreviewProps = {
-  storageKey: string;
+  draftType: "MTR_1030" | "MTR_1630" | "LAST_PARADE_1730";
   title: string;
   templateBody: string;
   defaultTime: string;
   defaultLocation?: string;
+  initialTime?: string | null;
+  initialLocation?: string | null;
   requireLocation?: boolean;
   mode: "mtr" | "last-parade";
 };
 
 export function AnnouncementPreview({
-  storageKey,
+  draftType,
   title,
   templateBody,
   defaultTime,
   defaultLocation = "",
+  initialTime = null,
+  initialLocation = null,
   requireLocation = false,
   mode,
 }: AnnouncementPreviewProps) {
-  const [time, setTime] = useState(defaultTime);
-  const [location, setLocation] = useState(defaultLocation);
-  const [ready, setReady] = useState(false);
+  const [time, setTime] = useState(initialTime ?? defaultTime);
+  const [location, setLocation] = useState(initialLocation ?? defaultLocation);
+  const [pending, startTransition] = useTransition();
+  const lastSavedDraftRef = useRef(
+    JSON.stringify({
+      time: initialTime ?? defaultTime,
+      location: initialLocation ?? defaultLocation,
+    }),
+  );
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(storageKey);
+    const nextDraft = JSON.stringify({ time, location });
 
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as { time?: string; location?: string };
-        window.setTimeout(() => {
-          if (parsed.time) setTime(parsed.time);
-          if (parsed.location) setLocation(parsed.location);
-        }, 0);
-      } catch {
-        window.localStorage.removeItem(storageKey);
-      }
+    if (nextDraft === lastSavedDraftRef.current) {
+      return;
     }
 
-    window.setTimeout(() => {
-      setReady(true);
-    }, 0);
-  }, [storageKey]);
+    const timeoutId = window.setTimeout(() => {
+      startTransition(async () => {
+        const result = await updateAnnouncementDraftAction({
+          type: draftType,
+          time,
+          location,
+        });
 
-  useEffect(() => {
-    if (!ready) return;
-    window.localStorage.setItem(storageKey, JSON.stringify({ time, location }));
-  }, [location, ready, storageKey, time]);
+        if (result.ok) {
+          lastSavedDraftRef.current = nextDraft;
+        }
+      });
+    }, 500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [draftType, location, startTransition, time]);
 
   function generateMessage() {
     if (mode === "last-parade") {
@@ -106,6 +116,8 @@ export function AnnouncementPreview({
           title={`${title} Message`}
         />
       </div>
+
+      {pending ? <p className="mt-3 text-xs text-slate-500">Saving draft...</p> : null}
     </section>
   );
 }

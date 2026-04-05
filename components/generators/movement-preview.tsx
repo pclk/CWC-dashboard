@@ -1,12 +1,17 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
+import { updateTroopMovementDraftAction } from "@/actions/generator-drafts";
 import { deleteTroopMovementAction, saveTroopMovementAction } from "@/actions/troop-movement";
 import { MessageEditor } from "@/components/generators/message-editor";
+import { SearchableCombobox } from "@/components/generators/searchable-combobox";
 import { formatCompactDmyHm } from "@/lib/date";
-import { generateTroopMovementMessage } from "@/lib/generators/troop-movement";
+import {
+  DEFAULT_TROOP_MOVEMENT_LOCATION_SUGGESTIONS,
+  generateTroopMovementMessage,
+} from "@/lib/generators/troop-movement";
 import { buildTextPreview } from "@/lib/formatting";
 
 type MovementHistory = {
@@ -25,25 +30,88 @@ export function MovementPreview({
   templateBody,
   suggestedStrengthText,
   remarkSuggestions,
+  initialFromLocation,
+  initialToLocation,
+  initialStrengthText,
+  initialArrivalTimeText,
+  initialRemarksText,
   history,
 }: {
   unitName: string;
   templateBody: string;
   suggestedStrengthText: string;
   remarkSuggestions: string[];
+  initialFromLocation?: string | null;
+  initialToLocation?: string | null;
+  initialStrengthText?: string | null;
+  initialArrivalTimeText?: string | null;
+  initialRemarksText?: string | null;
   history: MovementHistory[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [fromLocation, setFromLocation] = useState("");
-  const [toLocation, setToLocation] = useState("");
-  const [strengthText, setStrengthText] = useState(suggestedStrengthText);
-  const [arrivalTimeText, setArrivalTimeText] = useState("");
-  const [remarks, setRemarks] = useState(remarkSuggestions.length ? remarkSuggestions : [""]);
+  const initialRemarks =
+    initialRemarksText !== null && initialRemarksText !== undefined
+      ? initialRemarksText.split("\n")
+      : remarkSuggestions.length
+        ? remarkSuggestions
+        : [""];
+  const [fromLocation, setFromLocation] = useState(initialFromLocation ?? "");
+  const [toLocation, setToLocation] = useState(initialToLocation ?? "");
+  const [strengthText, setStrengthText] = useState(initialStrengthText ?? suggestedStrengthText);
+  const [arrivalTimeText, setArrivalTimeText] = useState(initialArrivalTimeText ?? "");
+  const [remarks, setRemarks] = useState(initialRemarks.length ? initialRemarks : [""]);
+  const lastSavedDraftRef = useRef(
+    JSON.stringify({
+      fromLocation: initialFromLocation ?? "",
+      toLocation: initialToLocation ?? "",
+      strengthText: initialStrengthText ?? suggestedStrengthText,
+      arrivalTimeText: initialArrivalTimeText ?? "",
+      remarksText: (initialRemarks.length ? initialRemarks : [""]).join("\n"),
+    }),
+  );
+
+  const locationSuggestions = [
+    ...DEFAULT_TROOP_MOVEMENT_LOCATION_SUGGESTIONS,
+    ...history.flatMap((item) => [item.fromLocation, item.toLocation]),
+  ];
 
   function normalizedRemarks() {
     return remarks.map((remark) => remark.trim()).filter(Boolean);
   }
+
+  useEffect(() => {
+    const remarksText = remarks.join("\n");
+    const nextDraft = JSON.stringify({
+      fromLocation,
+      toLocation,
+      strengthText,
+      arrivalTimeText,
+      remarksText,
+    });
+
+    if (nextDraft === lastSavedDraftRef.current) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      startTransition(async () => {
+        const result = await updateTroopMovementDraftAction({
+          fromLocation,
+          toLocation,
+          strengthText,
+          arrivalTimeText,
+          remarksText,
+        });
+
+        if (result.ok) {
+          lastSavedDraftRef.current = nextDraft;
+        }
+      });
+    }, 500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [arrivalTimeText, fromLocation, remarks, startTransition, strengthText, toLocation]);
 
   const initialGeneratedText = generateTroopMovementMessage(
     {
@@ -67,22 +135,20 @@ export function MovementPreview({
         </p>
 
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">From</label>
-            <input
-              value={fromLocation}
-              onChange={(event) => setFromLocation(event.target.value)}
-              className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">To</label>
-            <input
-              value={toLocation}
-              onChange={(event) => setToLocation(event.target.value)}
-              className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-            />
-          </div>
+          <SearchableCombobox
+            label="From"
+            value={fromLocation}
+            onValueChange={setFromLocation}
+            suggestions={locationSuggestions}
+            placeholder="Search or type location"
+          />
+          <SearchableCombobox
+            label="To"
+            value={toLocation}
+            onValueChange={setToLocation}
+            suggestions={locationSuggestions}
+            placeholder="Search or type location"
+          />
           <div className="space-y-2">
             <label className="block text-sm font-medium text-slate-700">Strength Text</label>
             <input
@@ -191,6 +257,8 @@ export function MovementPreview({
         }
         saveLabel="Save Movement"
       />
+
+      {pending ? <p className="text-xs text-slate-500">Saving draft...</p> : null}
 
       <section className="rounded-[2rem] border border-black/10 bg-white/95 p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-900">Movement History</h2>

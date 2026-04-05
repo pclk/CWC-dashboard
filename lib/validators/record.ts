@@ -1,10 +1,11 @@
-import { RecordCategory } from "@prisma/client";
 import { z } from "zod";
+
+import { RECORD_CATEGORY_VALUES } from "@/lib/record-categories";
 
 export const recordSchema = z.object({
   id: z.string().optional(),
   cadetId: z.string().min(1, "Cadet is required."),
-  category: z.enum(RecordCategory),
+  category: z.enum(RECORD_CATEGORY_VALUES),
   title: z.string().trim().max(120).optional().or(z.literal("")),
   details: z.string().trim().max(1000).optional().or(z.literal("")),
   startAt: z.string().optional().or(z.literal("")),

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
-import { formatCompactDmyHm } from "@/lib/date";
+import { formatCompactDmy } from "@/lib/date";
+import { getRecordCategoryLabel } from "@/lib/record-categories";
 
 type DueRecord = {
   id: string;
@@ -21,7 +22,7 @@ export function DueConfirmationList({ records }: { records: DueRecord[] }) {
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Needs Confirmation</h2>
           <p className="text-sm text-slate-600">
-            Records do not disappear automatically after their end time passes.
+            Records do not disappear automatically after their end date passes.
           </p>
         </div>
         <Link
@@ -44,12 +45,12 @@ export function DueConfirmationList({ records }: { records: DueRecord[] }) {
                   {record.cadet.rank} {record.cadet.displayName}
                 </p>
                 <p className="text-sm text-slate-700">
-                  {record.category}
+                  {getRecordCategoryLabel(record.category)}
                   {record.title ? ` • ${record.title}` : ""}
                 </p>
               </div>
               <div className="text-sm text-amber-800">
-                {record.endAt ? `Ended ${formatCompactDmyHm(record.endAt)}` : "End time not set"}
+                {record.endAt ? `Ended ${formatCompactDmy(record.endAt)}` : "End date not set"}
               </div>
             </div>
           ))

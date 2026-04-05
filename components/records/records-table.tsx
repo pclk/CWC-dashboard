@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { deleteRecordAction } from "@/actions/records";
-import { formatCompactDmyHm } from "@/lib/date";
+import { formatCompactDmy } from "@/lib/date";
+import { getRecordCategoryLabel, RECORD_CATEGORY_VALUES } from "@/lib/record-categories";
 import { ConfirmResolveDialog } from "@/components/records/confirm-resolve-dialog";
 import { RecordForm } from "@/components/records/record-form";
 
@@ -71,7 +72,7 @@ export function RecordsTable({
               setEditingRecord({
                 id: "",
                 cadetId: "",
-                category: "MA_OA",
+                category: "MC",
                 title: "",
                 details: "",
                 startAt: null,
@@ -117,13 +118,11 @@ export function RecordsTable({
             className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none focus:border-teal-700"
           >
             <option value="ALL">All categories</option>
-            {["MA_OA", "MC", "RSO", "RSI", "CL", "HL", "OTHER", "STATUS_RESTRICTION"].map(
-              (option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ),
-            )}
+            {RECORD_CATEGORY_VALUES.map((option) => (
+              <option key={option} value={option}>
+                {getRecordCategoryLabel(option)}
+              </option>
+            ))}
           </select>
 
           <select
@@ -171,13 +170,13 @@ export function RecordsTable({
                     <td className="px-4 py-3 font-medium text-slate-900">
                       {record.cadet.rank} {record.cadet.displayName}
                     </td>
-                    <td className="px-4 py-3">{record.category}</td>
+                    <td className="px-4 py-3">{getRecordCategoryLabel(record.category)}</td>
                     <td className="max-w-sm px-4 py-3 text-slate-600">
                       <div>{record.title || "-"}</div>
                       {record.details ? <div className="mt-1 text-xs text-slate-500">{record.details}</div> : null}
                     </td>
                     <td className="px-4 py-3 text-slate-600">
-                      {record.endAt ? formatCompactDmyHm(new Date(record.endAt)) : "-"}
+                      {record.endAt ? formatCompactDmy(new Date(record.endAt)) : "-"}
                     </td>
                     <td className="px-4 py-3 text-slate-600">
                       <div>{record.affectsStrength ? "Strength" : "No strength effect"}</div>

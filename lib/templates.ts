@@ -39,7 +39,7 @@ CL:
 Others:
 {{othersBlock}}
 
-Status Restrictions:
+Status:
 {{statusBlock}}
 
 Upcoming Appointments:
@@ -72,7 +72,7 @@ CL:
 Others:
 {{othersBlock}}
 
-Status Restrictions:
+Status:
 {{statusBlock}}
 
 Upcoming Appointments:

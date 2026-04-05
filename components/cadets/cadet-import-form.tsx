@@ -51,7 +51,7 @@ export function CadetImportForm() {
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Import Cadets</h2>
           <p className="text-sm text-slate-600">
-            Upload a CSV to create or update cadets by service number first, then display name.
+            Upload a CSV to create or update cadets by display name.
           </p>
         </div>
         <button
@@ -82,8 +82,8 @@ export function CadetImportForm() {
       </div>
 
       <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-        <p>Supported headers: rank, displayName, serviceNumber, active, sortOrder, notes.</p>
-        <p>Also accepted: name, display name, service number, svc no, status, order, remarks.</p>
+        <p>Supported headers: rank, displayName, active, sortOrder, notes.</p>
+        <p>Also accepted: name, display name, status, order, remarks.</p>
         <p>Blank rank, active, and sortOrder cells default to ME4T, true, and 0.</p>
       </div>
 

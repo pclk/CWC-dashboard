@@ -34,6 +34,21 @@ model UserSettings {
   defaultLastParadeText   String?
   defaultMtrMorningText   String?
   defaultMtrAfternoonText String?
+  announcementMtr1030Time String?
+  announcementMtr1030Location String?
+  announcementMtr1630Time String?
+  announcementMtr1630Location String?
+  announcementLastParadeTime String?
+  announcementLastParadeLocation String?
+  paradeDraftReportType   String?
+  paradeDraftReportAtValue String?
+  paradeDraftReportTimeLabel String?
+  paradeDraftPrefixOverride String?
+  movementDraftFromLocation String?
+  movementDraftToLocation String?
+  movementDraftStrengthText String?
+  movementDraftArrivalTimeText String?
+  movementDraftRemarksText String?
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
@@ -45,7 +60,6 @@ model Cadet {
   userId        String
   rank          String   @default("ME4T")
   displayName   String
-  serviceNumber String?
   active        Boolean  @default(true)
   sortOrder     Int      @default(0)
   notes         String?
@@ -110,6 +124,9 @@ model Appointment {
   venue         String?
   appointmentAt DateTime
   notes         String?
+  affectsMorningStrength   Boolean  @default(false)
+  affectsAfternoonStrength Boolean  @default(false)
+  affectsEveningStrength   Boolean  @default(false)
   completed     Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

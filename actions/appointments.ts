@@ -17,6 +17,9 @@ export async function upsertAppointmentAction(formData: FormData): Promise<Actio
     venue: parseOptionalString(formData.get("venue")),
     appointmentAt: parseOptionalString(formData.get("appointmentAt")),
     notes: parseOptionalString(formData.get("notes")),
+    affectsMorningStrength: parseCheckbox(formData.get("affectsMorningStrength")),
+    affectsAfternoonStrength: parseCheckbox(formData.get("affectsAfternoonStrength")),
+    affectsEveningStrength: parseCheckbox(formData.get("affectsEveningStrength")),
     completed: parseCheckbox(formData.get("completed")),
   });
 
@@ -25,7 +28,13 @@ export async function upsertAppointmentAction(formData: FormData): Promise<Actio
   }
 
   await assertCadetOwnership(userId, parsed.data.cadetId);
-  const appointmentAt = parseSingaporeInputToUtc(parsed.data.appointmentAt);
+  let appointmentAt: Date | null;
+
+  try {
+    appointmentAt = parseSingaporeInputToUtc(parsed.data.appointmentAt);
+  } catch (error) {
+    return failure(error instanceof Error ? error.message : "Invalid appointment date and time.");
+  }
 
   if (!appointmentAt) {
     return failure("Appointment date and time are required.");
@@ -44,6 +53,9 @@ export async function upsertAppointmentAction(formData: FormData): Promise<Actio
         venue: parsed.data.venue || null,
         appointmentAt,
         notes: parsed.data.notes || null,
+        affectsMorningStrength: parsed.data.affectsMorningStrength,
+        affectsAfternoonStrength: parsed.data.affectsAfternoonStrength,
+        affectsEveningStrength: parsed.data.affectsEveningStrength,
         completed: parsed.data.completed,
       },
     });
@@ -56,6 +68,9 @@ export async function upsertAppointmentAction(formData: FormData): Promise<Actio
         venue: parsed.data.venue || null,
         appointmentAt,
         notes: parsed.data.notes || null,
+        affectsMorningStrength: parsed.data.affectsMorningStrength,
+        affectsAfternoonStrength: parsed.data.affectsAfternoonStrength,
+        affectsEveningStrength: parsed.data.affectsEveningStrength,
         completed: parsed.data.completed,
       },
     });

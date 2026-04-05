@@ -1,5 +1,8 @@
 import type { RecordCategory, ResolutionState } from "@prisma/client";
 
+import { getSingaporeDayBounds } from "@/lib/date";
+import { type AppRecordCategory } from "@/lib/record-categories";
+
 export function deriveResolutionState(
   record: {
     endAt: Date | null;
@@ -7,8 +10,10 @@ export function deriveResolutionState(
   },
   now = new Date(),
 ) {
+  const { start: todayStart } = getSingaporeDayBounds(now);
+
   if (record.resolutionState === "RESOLVED") return "RESOLVED";
-  if (record.endAt && record.endAt < now) return "EXPIRED_PENDING_CONFIRMATION";
+  if (record.endAt && record.endAt < todayStart) return "EXPIRED_PENDING_CONFIRMATION";
   return "ACTIVE";
 }
 
@@ -18,10 +23,9 @@ export const OPERATIONAL_RECORD_STATES: ResolutionState[] = [
 ];
 
 export const CATEGORY_DEFAULTS: Record<
-  RecordCategory,
+  AppRecordCategory,
   { affectsStrength: boolean; countsNotInCamp: boolean }
 > = {
-  MA_OA: { affectsStrength: true, countsNotInCamp: true },
   MC: { affectsStrength: true, countsNotInCamp: true },
   RSO: { affectsStrength: true, countsNotInCamp: true },
   RSI: { affectsStrength: false, countsNotInCamp: false },
@@ -31,7 +35,7 @@ export const CATEGORY_DEFAULTS: Record<
   STATUS_RESTRICTION: { affectsStrength: false, countsNotInCamp: false },
 };
 
-export function getRecordCategoryDefaults(category: RecordCategory) {
+export function getRecordCategoryDefaults(category: AppRecordCategory) {
   return CATEGORY_DEFAULTS[category];
 }
 

@@ -7,6 +7,9 @@ export const appointmentSchema = z.object({
   venue: z.string().trim().max(160).optional().or(z.literal("")),
   appointmentAt: z.string().min(1, "Appointment time is required."),
   notes: z.string().trim().max(1000).optional().or(z.literal("")),
+  affectsMorningStrength: z.boolean(),
+  affectsAfternoonStrength: z.boolean(),
+  affectsEveningStrength: z.boolean(),
   completed: z.boolean(),
 });
 

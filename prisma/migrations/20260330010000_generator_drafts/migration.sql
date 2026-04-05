@@ -1,0 +1,16 @@
+ALTER TABLE "UserSettings"
+ADD COLUMN "announcementMtr1030Time" TEXT,
+ADD COLUMN "announcementMtr1030Location" TEXT,
+ADD COLUMN "announcementMtr1630Time" TEXT,
+ADD COLUMN "announcementMtr1630Location" TEXT,
+ADD COLUMN "announcementLastParadeTime" TEXT,
+ADD COLUMN "announcementLastParadeLocation" TEXT,
+ADD COLUMN "paradeDraftReportType" TEXT,
+ADD COLUMN "paradeDraftReportAtValue" TEXT,
+ADD COLUMN "paradeDraftReportTimeLabel" TEXT,
+ADD COLUMN "paradeDraftPrefixOverride" TEXT,
+ADD COLUMN "movementDraftFromLocation" TEXT,
+ADD COLUMN "movementDraftToLocation" TEXT,
+ADD COLUMN "movementDraftStrengthText" TEXT,
+ADD COLUMN "movementDraftArrivalTimeText" TEXT,
+ADD COLUMN "movementDraftRemarksText" TEXT;
