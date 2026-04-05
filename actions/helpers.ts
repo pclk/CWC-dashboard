@@ -32,9 +32,11 @@ export function revalidateOperationalPages() {
   revalidatePath("/cadets");
   revalidatePath("/records");
   revalidatePath("/appointments");
+  revalidatePath("/announcements");
   revalidatePath("/parade-state");
   revalidatePath("/troop-movement");
   revalidatePath("/book-in");
+  revalidatePath("/duty-instructors");
 }
 
 export function success(message: string): ActionResult {

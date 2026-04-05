@@ -117,6 +117,7 @@ export async function updateMessageTemplateAction(
   });
 
   revalidatePath("/settings");
+  revalidatePath("/dashboard");
   revalidatePath("/parade-state");
   revalidatePath("/troop-movement");
   revalidatePath("/announcements");

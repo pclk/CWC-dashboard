@@ -64,3 +64,42 @@ export async function assertTroopMovementOwnership(userId: string, movementId: s
 
   return movement;
 }
+
+export async function assertWeeklyTodoOwnership(userId: string, todoId: string) {
+  const todo = await prisma.weeklyTodo.findFirst({
+    where: { id: todoId, userId },
+    select: { id: true },
+  });
+
+  if (!todo) {
+    throw new Error("Weekly todo not found");
+  }
+
+  return todo;
+}
+
+export async function assertCurrentAffairSharingOwnership(userId: string, entryId: string) {
+  const entry = await prisma.currentAffairSharing.findFirst({
+    where: { id: entryId, userId },
+    select: { id: true },
+  });
+
+  if (!entry) {
+    throw new Error("Current affair sharing entry not found");
+  }
+
+  return entry;
+}
+
+export async function assertDutyInstructorOwnership(userId: string, dutyInstructorId: string) {
+  const dutyInstructor = await prisma.dutyInstructor.findFirst({
+    where: { id: dutyInstructorId, userId },
+    select: { id: true },
+  });
+
+  if (!dutyInstructor) {
+    throw new Error("Duty instructor entry not found");
+  }
+
+  return dutyInstructor;
+}

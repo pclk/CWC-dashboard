@@ -16,16 +16,18 @@ export function MobileNav() {
           const active = pathname === item.href;
 
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "min-w-[5.5rem] rounded-2xl px-2 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.16em]",
-                active ? "bg-teal-700 text-white" : "text-slate-600",
-              )}
-            >
-              {item.shortLabel}
-            </Link>
+            <div key={item.href} className="flex items-center gap-2">
+              {item.separatorBefore ? <div className="h-8 w-px shrink-0 bg-black/10" aria-hidden="true" /> : null}
+              <Link
+                href={item.href}
+                className={cn(
+                  "min-w-[5.5rem] rounded-2xl px-2 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.16em]",
+                  active ? "bg-teal-700 text-white" : "text-slate-600",
+                )}
+              >
+                {item.shortLabel}
+              </Link>
+            </div>
           );
         })}
       </div>

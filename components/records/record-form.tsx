@@ -33,6 +33,7 @@ type RecordValues = {
   details: string | null;
   startAt: Date | string | null;
   endAt: Date | string | null;
+  unknownEndTime: boolean;
   affectsStrength: boolean;
   countsNotInCamp: boolean;
   sortOrder: number;
@@ -51,6 +52,7 @@ export function RecordForm({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [category, setCategory] = useState(record?.category ?? "MC");
+  const [unknownEndTime, setUnknownEndTime] = useState(record?.unknownEndTime ?? false);
   const [affectsStrength, setAffectsStrength] = useState(
     record?.affectsStrength ?? categoryDefaults.MC.affectsStrength,
   );
@@ -62,7 +64,12 @@ export function RecordForm({
     setCategory(nextCategory);
     setAffectsStrength(categoryDefaults[nextCategory].affectsStrength);
     setCountsNotInCamp(categoryDefaults[nextCategory].countsNotInCamp);
+    if (!["MC", "HL"].includes(nextCategory)) {
+      setUnknownEndTime(false);
+    }
   }
+
+  const canUseUnknownEndTime = category === "MC" || category === "HL";
 
   return (
     <form
@@ -71,6 +78,10 @@ export function RecordForm({
 
         startTransition(async () => {
           formData.set("category", category);
+          formData.set("unknownEndTime", String(canUseUnknownEndTime && unknownEndTime));
+          if (canUseUnknownEndTime && unknownEndTime) {
+            formData.set("endAt", "");
+          }
           formData.set("affectsStrength", String(affectsStrength));
           formData.set("countsNotInCamp", String(countsNotInCamp));
           const result = await upsertRecordAction(formData);
@@ -107,6 +118,7 @@ export function RecordForm({
       </div>
 
       <input type="hidden" name="id" defaultValue={record?.id ?? ""} />
+      <input type="hidden" name="unknownEndTime" value={String(canUseUnknownEndTime && unknownEndTime)} />
       <input type="hidden" name="affectsStrength" value={String(affectsStrength)} />
       <input type="hidden" name="countsNotInCamp" value={String(countsNotInCamp)} />
 
@@ -188,11 +200,28 @@ export function RecordForm({
             autoComplete="off"
             placeholder="DDMMYY"
             defaultValue={record?.endAt ? formatCompactDateInputValue(new Date(record.endAt)) : ""}
+            disabled={canUseUnknownEndTime && unknownEndTime}
             className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
           />
-          <p className="text-xs text-slate-500">Records flag at 0000 on the day after the end date.</p>
+          <p className="text-xs text-slate-500">
+            {canUseUnknownEndTime && unknownEndTime
+              ? "Unknown end time records stay active until you update them manually."
+              : "Records flag at 0000 on the day after the end date."}
+          </p>
         </div>
       </div>
+
+      {canUseUnknownEndTime ? (
+        <label className="flex items-center gap-3 rounded-2xl border border-black/10 px-4 py-3 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={unknownEndTime}
+            onChange={(event) => setUnknownEndTime(event.target.checked)}
+            className="size-4 rounded border-black/20"
+          />
+          Unknown End Time
+        </label>
+      ) : null}
 
       <div className="grid gap-3 md:grid-cols-2">
         <label className="flex items-center gap-3 rounded-2xl border border-black/10 px-4 py-3 text-sm text-slate-700">

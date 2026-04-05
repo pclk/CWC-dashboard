@@ -1,15 +1,19 @@
 import { z } from "zod";
 
-export const announcementDraftTypeSchema = z.enum([
-  "MTR_1030",
-  "MTR_1630",
-  "LAST_PARADE_1730",
-]);
+import { ANNOUNCEMENT_DRAFT_TYPES } from "@/lib/announcement-config";
+
+export const announcementDraftTypeSchema = z.enum(ANNOUNCEMENT_DRAFT_TYPES);
 
 export const announcementDraftSchema = z.object({
   type: announcementDraftTypeSchema,
   time: z.string().trim().max(40),
-  location: z.string().trim().max(160),
+  location: z.string().trim().max(160).optional().default(""),
+  activity: z.string().trim().max(120).optional().default(""),
+  recipient: z.string().trim().max(40).optional().default(""),
+  rank: z.string().trim().max(40).optional().default(""),
+  name: z.string().trim().max(120).optional().default(""),
+  firstTime: z.boolean().optional().default(false),
+  isPtDay: z.boolean().optional().default(false),
 });
 
 export const paradeDraftSchema = z.object({

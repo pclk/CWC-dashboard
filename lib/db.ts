@@ -12,8 +12,10 @@ import {
   formatCompactDmyHm,
   getSingaporeDayBounds,
   getSingaporeStrengthPeriod,
+  getSingaporeWeekBounds,
   type StrengthPeriod,
 } from "@/lib/date";
+import { WEEKLY_TODO_SYSTEM_KEYS } from "@/lib/announcement-config";
 import { type BookInInput } from "@/lib/generators/book-in";
 import { buildParadeCaaLine, type ParadeStateInput } from "@/lib/generators/parade-state";
 import { renderTemplate } from "@/lib/formatting";
@@ -23,7 +25,12 @@ import {
   computeNotInCampCounts,
   OPERATIONAL_RECORD_STATES,
 } from "@/lib/strength";
-import { DEFAULT_SETTINGS_VALUES, DEFAULT_TEMPLATE_BODIES, DEFAULT_TEMPLATE_DEFINITIONS } from "@/lib/templates";
+import {
+  DEFAULT_SETTINGS_VALUES,
+  DEFAULT_TEMPLATE_BODIES,
+  DEFAULT_TEMPLATE_DEFINITIONS,
+  LEGACY_DEFAULT_TEMPLATE_BODIES,
+} from "@/lib/templates";
 
 type OperationalRecordWithCadet = Prisma.CadetRecordGetPayload<{
   include: {
@@ -53,6 +60,15 @@ type AppointmentWithCadet = Prisma.AppointmentGetPayload<{
   };
 }>;
 
+type CurrentAffairSharingRow = Prisma.CurrentAffairSharingGetPayload<{}>;
+type DutyInstructorRow = Prisma.DutyInstructorGetPayload<{}>;
+type WeeklyTodoRow = Prisma.WeeklyTodoGetPayload<{}>;
+
+const DEFAULT_WEEKLY_TODOS = [
+  { systemKey: WEEKLY_TODO_SYSTEM_KEYS.SBA_IC, title: "SBA IC", sortOrder: 0 },
+  { systemKey: WEEKLY_TODO_SYSTEM_KEYS.CA_SHARING, title: "CA sharing", sortOrder: 1 },
+] as const;
+
 function sortCadets(cadets: Cadet[]) {
   return [...cadets].sort(
     (left, right) =>
@@ -80,6 +96,34 @@ function sortAppointments(appointments: AppointmentWithCadet[]) {
   );
 }
 
+function sortWeeklyTodos(todos: WeeklyTodoRow[]) {
+  return [...todos].sort(
+    (left, right) =>
+      left.sortOrder - right.sortOrder ||
+      left.title.localeCompare(right.title) ||
+      left.createdAt.getTime() - right.createdAt.getTime(),
+  );
+}
+
+function sortCurrentAffairSharings(entries: CurrentAffairSharingRow[]) {
+  return [...entries].sort(
+    (left, right) =>
+      left.sharingDate.getTime() - right.sharingDate.getTime() ||
+      left.sortOrder - right.sortOrder ||
+      left.presenter.localeCompare(right.presenter) ||
+      left.title.localeCompare(right.title),
+  );
+}
+
+function sortDutyInstructors(entries: DutyInstructorRow[]) {
+  return [...entries].sort(
+    (left, right) =>
+      left.dutyDate.getTime() - right.dutyDate.getTime() ||
+      left.rank.localeCompare(right.rank) ||
+      left.name.localeCompare(right.name),
+  );
+}
+
 function buildTemplateMap(rows: MessageTemplate[]) {
   const map = { ...DEFAULT_TEMPLATE_BODIES } as Record<TemplateType, string>;
 
@@ -95,6 +139,52 @@ function buildTemplateMap(rows: MessageTemplate[]) {
   }
 
   return map;
+}
+
+async function syncLegacyDefaultTemplateBodies(userId: string) {
+  const templateMigrations = Object.entries(LEGACY_DEFAULT_TEMPLATE_BODIES) as Array<
+    [TemplateType, readonly string[]]
+  >;
+
+  await Promise.all(
+    templateMigrations.flatMap(([type, legacyBodies]) =>
+      legacyBodies.map((legacyBody) =>
+        prisma.messageTemplate.updateMany({
+          where: {
+            userId,
+            type,
+            isDefault: true,
+            body: legacyBody,
+          },
+          data: {
+            body: DEFAULT_TEMPLATE_BODIES[type],
+          },
+        }),
+      ),
+    ),
+  );
+}
+
+async function ensureDefaultWeeklyTodos(userId: string) {
+  const existing = await prisma.weeklyTodo.findMany({
+    where: { userId },
+    select: { systemKey: true },
+  });
+  const existingKeys = new Set(existing.map((item) => item.systemKey).filter(Boolean));
+  const missing = DEFAULT_WEEKLY_TODOS.filter((item) => !existingKeys.has(item.systemKey));
+
+  if (!missing.length) {
+    return;
+  }
+
+  await prisma.weeklyTodo.createMany({
+    data: missing.map((item) => ({
+      userId,
+      title: item.title,
+      systemKey: item.systemKey,
+      sortOrder: item.sortOrder,
+    })),
+  });
 }
 
 function buildRecordDetails(record: Pick<CadetRecord, "title" | "details">) {
@@ -130,6 +220,7 @@ function toNamedRecordItem(record: OperationalRecordWithCadet) {
     details: buildRecordDetails(record),
     startAt: record.startAt,
     endAt: record.endAt,
+    unknownEndTime: record.unknownEndTime,
   };
 }
 
@@ -146,6 +237,51 @@ function groupOperationalRecords(records: OperationalRecordWithCadet[]) {
       .filter((record) => record.category === RecordCategory.STATUS_RESTRICTION)
       .map(toNamedRecordItem),
   };
+}
+
+const TROOP_MOVEMENT_CATEGORY_ORDER = [
+  RecordCategory.MC,
+  RecordCategory.HL,
+  RecordCategory.RSO,
+  RecordCategory.RSI,
+  RecordCategory.CL,
+  RecordCategory.MA_OA,
+  RecordCategory.OTHER,
+  RecordCategory.STATUS_RESTRICTION,
+] as const;
+
+const TROOP_MOVEMENT_CATEGORY_SET = new Set<RecordCategory>(TROOP_MOVEMENT_CATEGORY_ORDER);
+
+function getTroopMovementCategoryLabel(category: RecordCategory) {
+  switch (category) {
+    case RecordCategory.MA_OA:
+      return "MA/OA";
+    case RecordCategory.STATUS_RESTRICTION:
+      return "STATUS";
+    default:
+      return category;
+  }
+}
+
+function buildTroopMovementRemarkSuggestions(records: OperationalRecordWithCadet[]) {
+  const groupedCadets = new Map<RecordCategory, Map<string, string>>();
+
+  for (const record of records) {
+    const categoryCadets = groupedCadets.get(record.category) ?? new Map<string, string>();
+    categoryCadets.set(record.cadetId, record.cadet.displayName);
+    groupedCadets.set(record.category, categoryCadets);
+  }
+
+  const orderedCategories = [
+    ...TROOP_MOVEMENT_CATEGORY_ORDER.filter((category) => groupedCadets.has(category)),
+    ...Array.from(groupedCadets.keys()).filter((category) => !TROOP_MOVEMENT_CATEGORY_SET.has(category)),
+  ];
+
+  return orderedCategories.map((category) => {
+    const cadetNames = Array.from(groupedCadets.get(category)?.values() ?? []);
+
+    return `${cadetNames.length}x ${getTroopMovementCategoryLabel(category)}: ${cadetNames.join(", ")}`;
+  });
 }
 
 function inferStrengthPeriod(
@@ -331,6 +467,9 @@ export async function ensureUserConfiguration(userId: string) {
       })),
     });
   }
+
+  await syncLegacyDefaultTemplateBodies(userId);
+  await ensureDefaultWeeklyTodos(userId);
 }
 
 export async function syncExpiredRecordStates(userId: string, now = new Date()) {
@@ -549,6 +688,62 @@ export async function getAppointments(userId: string) {
     },
     orderBy: [{ completed: "asc" }, { appointmentAt: "asc" }],
   });
+}
+
+export async function getWeeklyTodos(userId: string) {
+  await ensureUserConfiguration(userId);
+
+  const todos = await prisma.weeklyTodo.findMany({
+    where: { userId },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+
+  return sortWeeklyTodos(todos);
+}
+
+export async function getCurrentAffairSharingsForWeek(userId: string, date = new Date()) {
+  await ensureUserConfiguration(userId);
+  const { start, end } = getSingaporeWeekBounds(date);
+  const entries = await prisma.currentAffairSharing.findMany({
+    where: {
+      userId,
+      sharingDate: {
+        gte: start,
+        lte: end,
+      },
+    },
+    orderBy: [{ sharingDate: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+
+  return sortCurrentAffairSharings(entries);
+}
+
+export async function getCurrentAffairSharingsForDay(userId: string, date = new Date()) {
+  await ensureUserConfiguration(userId);
+  const { start, end } = getSingaporeDayBounds(date);
+  const entries = await prisma.currentAffairSharing.findMany({
+    where: {
+      userId,
+      sharingDate: {
+        gte: start,
+        lte: end,
+      },
+    },
+    orderBy: [{ sharingDate: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+
+  return sortCurrentAffairSharings(entries);
+}
+
+export async function getDutyInstructors(userId: string) {
+  await ensureUserConfiguration(userId);
+
+  const entries = await prisma.dutyInstructor.findMany({
+    where: { userId },
+    orderBy: [{ dutyDate: "asc" }],
+  });
+
+  return sortDutyInstructors(entries);
 }
 
 export async function computeStrengthSummary(userId: string, now = new Date()) {
@@ -776,21 +971,9 @@ export async function buildTroopMovementContext(userId: string) {
     getOperationalRecords(userId),
   ]);
 
-  const suggestions = operationalRecords
-    .map((record) => {
-      const detail = buildRecordDetails(record);
-      const categoryLabel =
-        record.category === RecordCategory.STATUS_RESTRICTION ? "Status" : record.category;
-
-      return `${record.cadet.rank} ${record.cadet.displayName} - ${categoryLabel}${
-        detail ? ` (${detail})` : ""
-      }`;
-    })
-    .slice(0, 12);
-
   return {
     unitName: settings.unitName,
     suggestedStrengthText: `${summary.presentStrength}/${summary.totalStrength}`,
-    remarkSuggestions: suggestions,
+    remarkSuggestions: buildTroopMovementRemarkSuggestions(operationalRecords),
   };
 }

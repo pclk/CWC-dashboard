@@ -15,12 +15,12 @@ export type ParadeStateInput = {
     other: number;
   };
   groupedRecords: {
-    mc: Array<{ rank: string; name: string; details?: string; startAt?: Date | null; endAt?: Date | null }>;
-    rso: Array<{ rank: string; name: string; details?: string; startAt?: Date | null; endAt?: Date | null }>;
-    rsi: Array<{ rank: string; name: string; details?: string; startAt?: Date | null; endAt?: Date | null }>;
-    cl: Array<{ rank: string; name: string; details?: string; startAt?: Date | null; endAt?: Date | null }>;
-    others: Array<{ rank: string; name: string; details?: string; startAt?: Date | null; endAt?: Date | null }>;
-    status: Array<{ rank: string; name: string; details?: string; startAt?: Date | null; endAt?: Date | null }>;
+    mc: Array<{ rank: string; name: string; details?: string; startAt?: Date | null; endAt?: Date | null; unknownEndTime?: boolean }>;
+    rso: Array<{ rank: string; name: string; details?: string; startAt?: Date | null; endAt?: Date | null; unknownEndTime?: boolean }>;
+    rsi: Array<{ rank: string; name: string; details?: string; startAt?: Date | null; endAt?: Date | null; unknownEndTime?: boolean }>;
+    cl: Array<{ rank: string; name: string; details?: string; startAt?: Date | null; endAt?: Date | null; unknownEndTime?: boolean }>;
+    others: Array<{ rank: string; name: string; details?: string; startAt?: Date | null; endAt?: Date | null; unknownEndTime?: boolean }>;
+    status: Array<{ rank: string; name: string; details?: string; startAt?: Date | null; endAt?: Date | null; unknownEndTime?: boolean }>;
   };
   maOaAppointments: Array<{
     rank: string;
@@ -39,8 +39,10 @@ export type ParadeStateInput = {
 };
 
 export function buildParadeCaaLine(reportAt: Date, reportTimeLabel?: string) {
-  if (reportTimeLabel?.trim()) {
-    return `${formatCompactDmyHm(reportAt)} (${reportTimeLabel.trim()})`;
+  const trimmedLabel = reportTimeLabel?.trim();
+
+  if (trimmedLabel && !["morning", "night"].includes(trimmedLabel.toLowerCase())) {
+    return `${formatCompactDmyHm(reportAt)} (${trimmedLabel})`;
   }
 
   return formatCompactDmyHm(reportAt);
@@ -77,12 +79,17 @@ function renderAppointmentList(items: ParadeStateInput["upcomingAppointments"]) 
   return items
     .map(
       (item, index) =>
-        `${index + 1}) ${item.rank} ${formatAppointmentCadetName(item.name)}\n(${buildAppointmentSubject(item)},\n${formatCompactDmy(item.appointmentAt)}, ${formatTimeText(item.appointmentAt)})`,
+        `${index + 1}) ${item.rank} ${formatAppointmentCadetName(item.name)}\n(${buildAppointmentSubject(item)}, ${formatCompactDmy(item.appointmentAt)}, ${formatTimeText(item.appointmentAt)})`,
     )
     .join("\n");
 }
 
-function formatRecordDateSpan(startAt?: Date | null, endAt?: Date | null) {
+function formatRecordDateSpan(startAt?: Date | null, endAt?: Date | null, unknownEndTime?: boolean) {
+  if (unknownEndTime) {
+    const formattedStart = startAt ? formatCompactDmy(startAt) : "??????";
+    return `${formattedStart} - ??????`;
+  }
+
   if (startAt && endAt) {
     const formattedStart = formatCompactDmy(startAt);
     const formattedEnd = formatCompactDmy(endAt);
@@ -101,17 +108,21 @@ function formatRecordDateSpan(startAt?: Date | null, endAt?: Date | null) {
   return "";
 }
 
-function renderDetailedRecordList(
-  items:
-    | ParadeStateInput["groupedRecords"]["mc"]
-    | ParadeStateInput["groupedRecords"]["cl"]
-    | ParadeStateInput["groupedRecords"]["others"],
+export function renderDetailedRecordList(
+  items: Array<{
+    rank: string;
+    name: string;
+    details?: string;
+    startAt?: Date | null;
+    endAt?: Date | null;
+    unknownEndTime?: boolean;
+  }>,
 ) {
   if (!items.length) return "NIL";
 
   return items
     .map((item, index) => {
-      const dateSpan = formatRecordDateSpan(item.startAt, item.endAt);
+      const dateSpan = formatRecordDateSpan(item.startAt, item.endAt, item.unknownEndTime);
       const formattedDetails = item.details?.replace(": ", ", ");
 
       if (formattedDetails && dateSpan) {

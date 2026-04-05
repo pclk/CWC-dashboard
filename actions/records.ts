@@ -21,6 +21,7 @@ export async function upsertRecordAction(formData: FormData): Promise<ActionResu
     details: parseOptionalString(formData.get("details")),
     startAt: parseOptionalString(formData.get("startAt")),
     endAt: parseOptionalString(formData.get("endAt")),
+    unknownEndTime: parseCheckbox(formData.get("unknownEndTime")),
     affectsStrength: parseCheckbox(formData.get("affectsStrength")),
     countsNotInCamp: parseCheckbox(formData.get("countsNotInCamp")),
     sortOrder: parseNumber(formData.get("sortOrder")),
@@ -37,7 +38,7 @@ export async function upsertRecordAction(formData: FormData): Promise<ActionResu
 
   try {
     startAt = parseSingaporeDateInputToUtc(parsed.data.startAt);
-    endAt = parseSingaporeDateInputToUtc(parsed.data.endAt);
+    endAt = parsed.data.unknownEndTime ? null : parseSingaporeDateInputToUtc(parsed.data.endAt);
   } catch (error) {
     return failure(error instanceof Error ? error.message : "Invalid record date.");
   }
@@ -65,6 +66,7 @@ export async function upsertRecordAction(formData: FormData): Promise<ActionResu
         details: parsed.data.details || null,
         startAt,
         endAt,
+        unknownEndTime: parsed.data.unknownEndTime,
         affectsStrength: parsed.data.affectsStrength,
         countsNotInCamp: parsed.data.countsNotInCamp,
         sortOrder: parsed.data.sortOrder,
@@ -82,6 +84,7 @@ export async function upsertRecordAction(formData: FormData): Promise<ActionResu
         details: parsed.data.details || null,
         startAt,
         endAt,
+        unknownEndTime: parsed.data.unknownEndTime,
         affectsStrength: parsed.data.affectsStrength,
         countsNotInCamp: parsed.data.countsNotInCamp,
         sortOrder: parsed.data.sortOrder,

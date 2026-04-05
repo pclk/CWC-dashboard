@@ -4,6 +4,15 @@ const ISO_DATE_REGEX = /^(\d{4})-(\d{2})-(\d{2})$/;
 const ISO_DATETIME_REGEX = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/;
 const COMPACT_DATE_REGEX = /^(\d{2})(\d{2})(\d{2})$/;
 const COMPACT_DATETIME_REGEX = /^(\d{2})(\d{2})(\d{2})[\sT-]?(\d{2}):?(\d{2})$/;
+const WEEKDAY_INDEX_MAP = {
+  sun: 0,
+  mon: 1,
+  tue: 2,
+  wed: 3,
+  thu: 4,
+  fri: 5,
+  sat: 6,
+} as const;
 
 export type StrengthPeriod = "morning" | "afternoon" | "evening";
 
@@ -200,4 +209,46 @@ export function formatDateLabel(date: Date) {
     month: "short",
     year: "numeric",
   }).format(date);
+}
+
+export function formatShortDayMonth(date: Date) {
+  return new Intl.DateTimeFormat("en-SG", {
+    timeZone: SINGAPORE_TIME_ZONE,
+    day: "numeric",
+    month: "short",
+  }).format(date);
+}
+
+export function formatWeekdayLabel(date: Date) {
+  const weekday = new Intl.DateTimeFormat("en-SG", {
+    timeZone: SINGAPORE_TIME_ZONE,
+    weekday: "short",
+  }).format(date);
+
+  switch (weekday.toLowerCase()) {
+    case "thu":
+      return "THURS";
+    case "tue":
+      return "TUES";
+    default:
+      return weekday.toUpperCase();
+  }
+}
+
+export function getSingaporeWeekBounds(date = new Date()) {
+  const parts = getParts(date);
+  const currentDayStart = new Date(
+    `${parts.year}-${parts.month}-${parts.day}T00:00:00${SINGAPORE_OFFSET_SUFFIX}`,
+  );
+  const weekday = new Intl.DateTimeFormat("en-SG", {
+    timeZone: SINGAPORE_TIME_ZONE,
+    weekday: "short",
+  })
+    .format(date)
+    .toLowerCase() as keyof typeof WEEKDAY_INDEX_MAP;
+  const dayOfWeek = WEEKDAY_INDEX_MAP[weekday] ?? 0;
+  const start = new Date(currentDayStart.getTime() - dayOfWeek * 24 * 60 * 60 * 1000);
+  const end = new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000 + (24 * 60 * 60 * 1000 - 1));
+
+  return { start, end };
 }

@@ -1,6 +1,7 @@
 "use server";
 
 import { failure, success, type ActionResult } from "@/actions/helpers";
+import { type AnnouncementDraftType } from "@/lib/announcement-config";
 import { ensureUserConfiguration } from "@/lib/db";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
@@ -11,9 +12,15 @@ import {
 } from "@/lib/validators/generator-drafts";
 
 export async function updateAnnouncementDraftAction(input: {
-  type: "MTR_1030" | "MTR_1630" | "LAST_PARADE_1730";
+  type: AnnouncementDraftType;
   time: string;
-  location: string;
+  location?: string;
+  activity?: string;
+  recipient?: string;
+  rank?: string;
+  name?: string;
+  firstTime?: boolean;
+  isPtDay?: boolean;
 }): Promise<ActionResult> {
   const userId = await requireUser();
   const parsed = announcementDraftSchema.safeParse(input);
@@ -35,10 +42,39 @@ export async function updateAnnouncementDraftAction(input: {
             announcementMtr1630Time: parsed.data.time,
             announcementMtr1630Location: parsed.data.location,
           }
-        : {
-            announcementLastParadeTime: parsed.data.time,
-            announcementLastParadeLocation: parsed.data.location,
-          };
+        : parsed.data.type === "LAST_PARADE_1730"
+          ? {
+              announcementLastParadeTime: parsed.data.time,
+              announcementLastParadeLocation: parsed.data.location,
+            }
+          : parsed.data.type === "MORNING_LAB"
+            ? {
+                announcementMorningLabTime: parsed.data.time,
+                announcementMorningLabIsPt: parsed.data.isPtDay,
+              }
+            : parsed.data.type === "FIRST_PARADE"
+              ? {
+                  announcementFirstParadeTime: parsed.data.time,
+                }
+              : parsed.data.type === "PT"
+                ? {
+                  announcementPtTime: parsed.data.time,
+                  announcementPtActivity: parsed.data.activity,
+                }
+                : parsed.data.type === "REQUEST_DI_FP"
+                  ? {
+                      announcementRequestDiRecipient: parsed.data.recipient,
+                      announcementRequestDiRank: parsed.data.rank,
+                      announcementRequestDiName: parsed.data.name,
+                      announcementRequestDiLocation: parsed.data.location,
+                      announcementRequestDiTime: parsed.data.time,
+                      announcementRequestDiFirstTime: parsed.data.firstTime,
+                    }
+                  : {
+                      announcementRequestLpRecipient: parsed.data.recipient,
+                      announcementRequestLpLocation: parsed.data.location,
+                      announcementRequestLpTime: parsed.data.time,
+                    };
 
   await prisma.userSettings.update({
     where: { userId },

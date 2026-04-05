@@ -24,6 +24,7 @@ type RecordRow = {
   details: string | null;
   startAt: Date | string | null;
   endAt: Date | string | null;
+  unknownEndTime: boolean;
   affectsStrength: boolean;
   countsNotInCamp: boolean;
   resolutionState: "ACTIVE" | "EXPIRED_PENDING_CONFIRMATION" | "RESOLVED";
@@ -77,6 +78,7 @@ export function RecordsTable({
                 details: "",
                 startAt: null,
                 endAt: null,
+                unknownEndTime: false,
                 affectsStrength: true,
                 countsNotInCamp: true,
                 resolutionState: "ACTIVE",
@@ -176,7 +178,11 @@ export function RecordsTable({
                       {record.details ? <div className="mt-1 text-xs text-slate-500">{record.details}</div> : null}
                     </td>
                     <td className="px-4 py-3 text-slate-600">
-                      {record.endAt ? formatCompactDmy(new Date(record.endAt)) : "-"}
+                      {record.unknownEndTime
+                        ? "??????"
+                        : record.endAt
+                          ? formatCompactDmy(new Date(record.endAt))
+                          : "-"}
                     </td>
                     <td className="px-4 py-3 text-slate-600">
                       <div>{record.affectsStrength ? "Strength" : "No strength effect"}</div>

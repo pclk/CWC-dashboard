@@ -32,18 +32,19 @@ export function Sidebar({
             const active = pathname === item.href;
 
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center rounded-2xl px-4 py-3 text-sm font-medium transition",
-                  active
-                    ? "bg-teal-700 text-white shadow-sm"
-                    : "text-slate-700 hover:bg-slate-100 hover:text-slate-900",
-                )}
-              >
-                {item.label}
-              </Link>
+              <div key={item.href} className={item.separatorBefore ? "mt-3 border-t border-black/10 pt-3" : ""}>
+                <Link
+                  href={item.href}
+                  className={cn(
+                    "flex items-center rounded-2xl px-4 py-3 text-sm font-medium transition",
+                    active
+                      ? "bg-teal-700 text-white shadow-sm"
+                      : "text-slate-700 hover:bg-slate-100 hover:text-slate-900",
+                  )}
+                >
+                  {item.label}
+                </Link>
+              </div>
             );
           })}
         </nav>

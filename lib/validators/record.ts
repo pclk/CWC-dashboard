@@ -10,6 +10,7 @@ export const recordSchema = z.object({
   details: z.string().trim().max(1000).optional().or(z.literal("")),
   startAt: z.string().optional().or(z.literal("")),
   endAt: z.string().optional().or(z.literal("")),
+  unknownEndTime: z.boolean(),
   affectsStrength: z.boolean(),
   countsNotInCamp: z.boolean(),
   sortOrder: z.number().int().min(0).max(9999),
