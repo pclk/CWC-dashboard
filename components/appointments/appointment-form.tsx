@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { upsertAppointmentAction } from "@/actions/appointments";
-import { formatDateTimeInputValue } from "@/lib/date";
+import { CadetSelectField } from "@/components/cadets/cadet-select-field";
+import { formatCompactDateTimeInputValue } from "@/lib/date";
 
 type CadetOption = {
   id: string;
@@ -20,6 +21,9 @@ type AppointmentValues = {
   venue: string | null;
   appointmentAt: Date | string;
   notes: string | null;
+  affectsMorningStrength: boolean;
+  affectsAfternoonStrength: boolean;
+  affectsEveningStrength: boolean;
   completed: boolean;
 };
 
@@ -34,6 +38,15 @@ export function AppointmentForm({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [affectsMorningStrength, setAffectsMorningStrength] = useState(
+    appointment?.affectsMorningStrength ?? false,
+  );
+  const [affectsAfternoonStrength, setAffectsAfternoonStrength] = useState(
+    appointment?.affectsAfternoonStrength ?? false,
+  );
+  const [affectsEveningStrength, setAffectsEveningStrength] = useState(
+    appointment?.affectsEveningStrength ?? false,
+  );
   const [completed, setCompleted] = useState(appointment?.completed ?? false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,6 +56,9 @@ export function AppointmentForm({
         setError(null);
 
         startTransition(async () => {
+          formData.set("affectsMorningStrength", String(affectsMorningStrength));
+          formData.set("affectsAfternoonStrength", String(affectsAfternoonStrength));
+          formData.set("affectsEveningStrength", String(affectsEveningStrength));
           formData.set("completed", String(completed));
           const result = await upsertAppointmentAction(formData);
 
@@ -76,29 +92,13 @@ export function AppointmentForm({
       </div>
 
       <input type="hidden" name="id" defaultValue={appointment?.id ?? ""} />
+      <input type="hidden" name="affectsMorningStrength" value={String(affectsMorningStrength)} />
+      <input type="hidden" name="affectsAfternoonStrength" value={String(affectsAfternoonStrength)} />
+      <input type="hidden" name="affectsEveningStrength" value={String(affectsEveningStrength)} />
       <input type="hidden" name="completed" value={String(completed)} />
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-slate-700">Cadet</label>
-          <select
-            name="cadetId"
-            defaultValue={appointment?.cadetId ?? ""}
-            required
-            className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-          >
-            <option value="" disabled>
-              Select cadet
-            </option>
-            {cadets
-              .filter((cadet) => cadet.active || cadet.id === appointment?.cadetId)
-              .map((cadet) => (
-                <option key={cadet.id} value={cadet.id}>
-                  {cadet.rank} {cadet.displayName}
-                </option>
-              ))}
-          </select>
-        </div>
+        <CadetSelectField cadets={cadets} name="cadetId" defaultValue={appointment?.cadetId ?? ""} required />
 
         <div className="space-y-2">
           <label className="block text-sm font-medium text-slate-700">Title</label>
@@ -125,15 +125,15 @@ export function AppointmentForm({
           <label className="block text-sm font-medium text-slate-700">Appointment time</label>
           <input
             name="appointmentAt"
-            type="datetime-local"
-            defaultValue={
-              appointment?.appointmentAt
-                ? formatDateTimeInputValue(new Date(appointment.appointmentAt))
-                : ""
-            }
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="DDMMYY HHMM"
+            defaultValue={appointment?.appointmentAt ? formatCompactDateTimeInputValue(new Date(appointment.appointmentAt)) : ""}
             required
             className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
           />
+          <p className="text-xs text-slate-500">Use DDMMYY HHMM. Example: 300426 0930.</p>
         </div>
       </div>
 
@@ -145,6 +145,38 @@ export function AppointmentForm({
           defaultValue={appointment?.notes ?? ""}
           className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
         />
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <label className="flex items-center gap-3 rounded-2xl border border-black/10 px-4 py-3 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={affectsMorningStrength}
+            onChange={(event) => setAffectsMorningStrength(event.target.checked)}
+            className="size-4 rounded border-black/20"
+          />
+          Affects morning strength
+        </label>
+
+        <label className="flex items-center gap-3 rounded-2xl border border-black/10 px-4 py-3 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={affectsAfternoonStrength}
+            onChange={(event) => setAffectsAfternoonStrength(event.target.checked)}
+            className="size-4 rounded border-black/20"
+          />
+          Affects afternoon strength
+        </label>
+
+        <label className="flex items-center gap-3 rounded-2xl border border-black/10 px-4 py-3 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={affectsEveningStrength}
+            onChange={(event) => setAffectsEveningStrength(event.target.checked)}
+            className="size-4 rounded border-black/20"
+          />
+          Affects evening strength
+        </label>
       </div>
 
       <label className="flex items-center gap-3 rounded-2xl border border-black/10 px-4 py-3 text-sm text-slate-700">

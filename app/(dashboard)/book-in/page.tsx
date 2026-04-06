@@ -1,3 +1,5 @@
+import { AnnouncementPreview } from "@/components/generators/announcement-preview";
+import { ANNOUNCEMENT_SECTION_IDS, DEFAULT_ANNOUNCEMENT_TIMES } from "@/lib/announcement-config";
 import { BookInPreview } from "@/components/generators/bookin-preview";
 import { buildBookInInput, getSettingsAndTemplates } from "@/lib/db";
 import { requireUser } from "@/lib/session";
@@ -19,6 +21,19 @@ export default async function BookInPage() {
       </section>
 
       <BookInPreview input={input} templateBody={settingsBundle.templateMap.BOOK_IN} />
+
+      <AnnouncementPreview
+        id={ANNOUNCEMENT_SECTION_IDS.LAST_PARADE_1730}
+        draftType="LAST_PARADE_1730"
+        title="Last Parade"
+        mode="last-parade"
+        templateBody={settingsBundle.templateMap.LAST_PARADE_1730}
+        defaultTime={DEFAULT_ANNOUNCEMENT_TIMES.LAST_PARADE_1730}
+        requireLocation
+        defaultLocation="315e"
+        initialTime={settingsBundle.settings.announcementLastParadeTime}
+        initialLocation={settingsBundle.settings.announcementLastParadeLocation}
+      />
     </div>
   );
 }

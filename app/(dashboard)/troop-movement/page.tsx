@@ -16,6 +16,11 @@ export default async function TroopMovementPage() {
       templateBody={settingsBundle.templateMap.TROOP_MOVEMENT}
       suggestedStrengthText={context.suggestedStrengthText}
       remarkSuggestions={context.remarkSuggestions}
+      initialFromLocation={settingsBundle.settings.movementDraftFromLocation}
+      initialToLocation={settingsBundle.settings.movementDraftToLocation}
+      initialStrengthText={settingsBundle.settings.movementDraftStrengthText}
+      initialArrivalTimeText={settingsBundle.settings.movementDraftArrivalTimeText}
+      initialRemarksText={settingsBundle.settings.movementDraftRemarksText}
       history={history}
     />
   );

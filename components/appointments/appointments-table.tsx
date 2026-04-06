@@ -21,6 +21,9 @@ type AppointmentRow = {
   venue: string | null;
   appointmentAt: Date | string;
   notes: string | null;
+  affectsMorningStrength: boolean;
+  affectsAfternoonStrength: boolean;
+  affectsEveningStrength: boolean;
   completed: boolean;
   cadet: {
     rank: string;
@@ -64,6 +67,9 @@ export function AppointmentsTable({
                 venue: "",
                 appointmentAt: new Date(),
                 notes: "",
+                affectsMorningStrength: false,
+                affectsAfternoonStrength: false,
+                affectsEveningStrength: false,
                 completed: false,
                 cadet: null,
               })

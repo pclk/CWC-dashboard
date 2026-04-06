@@ -4,10 +4,11 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { upsertRecordAction } from "@/actions/records";
-import { formatDateTimeInputValue } from "@/lib/date";
+import { CadetSelectField } from "@/components/cadets/cadet-select-field";
+import { formatCompactDateInputValue } from "@/lib/date";
+import { getRecordCategoryLabel, RECORD_CATEGORY_VALUES } from "@/lib/record-categories";
 
 const categoryDefaults: Record<string, { affectsStrength: boolean; countsNotInCamp: boolean }> = {
-  MA_OA: { affectsStrength: true, countsNotInCamp: true },
   MC: { affectsStrength: true, countsNotInCamp: true },
   RSO: { affectsStrength: true, countsNotInCamp: true },
   RSI: { affectsStrength: false, countsNotInCamp: false },
@@ -16,17 +17,6 @@ const categoryDefaults: Record<string, { affectsStrength: boolean; countsNotInCa
   OTHER: { affectsStrength: false, countsNotInCamp: false },
   STATUS_RESTRICTION: { affectsStrength: false, countsNotInCamp: false },
 };
-
-const categoryOptions = [
-  "MA_OA",
-  "MC",
-  "RSO",
-  "RSI",
-  "CL",
-  "HL",
-  "OTHER",
-  "STATUS_RESTRICTION",
-] as const;
 
 type CadetOption = {
   id: string;
@@ -43,6 +33,7 @@ type RecordValues = {
   details: string | null;
   startAt: Date | string | null;
   endAt: Date | string | null;
+  unknownEndTime: boolean;
   affectsStrength: boolean;
   countsNotInCamp: boolean;
   sortOrder: number;
@@ -60,19 +51,25 @@ export function RecordForm({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [category, setCategory] = useState(record?.category ?? "MA_OA");
+  const [category, setCategory] = useState(record?.category ?? "MC");
+  const [unknownEndTime, setUnknownEndTime] = useState(record?.unknownEndTime ?? false);
   const [affectsStrength, setAffectsStrength] = useState(
-    record?.affectsStrength ?? categoryDefaults.MA_OA.affectsStrength,
+    record?.affectsStrength ?? categoryDefaults.MC.affectsStrength,
   );
   const [countsNotInCamp, setCountsNotInCamp] = useState(
-    record?.countsNotInCamp ?? categoryDefaults.MA_OA.countsNotInCamp,
+    record?.countsNotInCamp ?? categoryDefaults.MC.countsNotInCamp,
   );
 
   function applyCategoryDefaults(nextCategory: string) {
     setCategory(nextCategory);
     setAffectsStrength(categoryDefaults[nextCategory].affectsStrength);
     setCountsNotInCamp(categoryDefaults[nextCategory].countsNotInCamp);
+    if (!["MC", "HL"].includes(nextCategory)) {
+      setUnknownEndTime(false);
+    }
   }
+
+  const canUseUnknownEndTime = category === "MC" || category === "HL";
 
   return (
     <form
@@ -81,6 +78,10 @@ export function RecordForm({
 
         startTransition(async () => {
           formData.set("category", category);
+          formData.set("unknownEndTime", String(canUseUnknownEndTime && unknownEndTime));
+          if (canUseUnknownEndTime && unknownEndTime) {
+            formData.set("endAt", "");
+          }
           formData.set("affectsStrength", String(affectsStrength));
           formData.set("countsNotInCamp", String(countsNotInCamp));
           const result = await upsertRecordAction(formData);
@@ -117,30 +118,12 @@ export function RecordForm({
       </div>
 
       <input type="hidden" name="id" defaultValue={record?.id ?? ""} />
+      <input type="hidden" name="unknownEndTime" value={String(canUseUnknownEndTime && unknownEndTime)} />
       <input type="hidden" name="affectsStrength" value={String(affectsStrength)} />
       <input type="hidden" name="countsNotInCamp" value={String(countsNotInCamp)} />
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-slate-700">Cadet</label>
-          <select
-            name="cadetId"
-            defaultValue={record?.cadetId ?? ""}
-            required
-            className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-          >
-            <option value="" disabled>
-              Select cadet
-            </option>
-            {cadets
-              .filter((cadet) => cadet.active || cadet.id === record?.cadetId)
-              .map((cadet) => (
-                <option key={cadet.id} value={cadet.id}>
-                  {cadet.rank} {cadet.displayName}
-                </option>
-              ))}
-          </select>
-        </div>
+        <CadetSelectField cadets={cadets} name="cadetId" defaultValue={record?.cadetId ?? ""} required />
 
         <div className="space-y-2">
           <label className="block text-sm font-medium text-slate-700">Category</label>
@@ -150,9 +133,9 @@ export function RecordForm({
             onChange={(event) => applyCategoryDefaults(event.target.value)}
             className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
           >
-            {categoryOptions.map((option) => (
+            {RECORD_CATEGORY_VALUES.map((option) => (
               <option key={option} value={option}>
-                {option}
+                {getRecordCategoryLabel(option)}
               </option>
             ))}
           </select>
@@ -198,24 +181,47 @@ export function RecordForm({
           <label className="block text-sm font-medium text-slate-700">Start</label>
           <input
             name="startAt"
-            type="datetime-local"
-            defaultValue={
-              record?.startAt ? formatDateTimeInputValue(new Date(record.startAt)) : ""
-            }
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="DDMMYY"
+            defaultValue={record?.startAt ? formatCompactDateInputValue(new Date(record.startAt)) : ""}
             className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
           />
+          <p className="text-xs text-slate-500">Use DDMMYY. Example: 010426.</p>
         </div>
 
         <div className="space-y-2">
           <label className="block text-sm font-medium text-slate-700">End</label>
           <input
             name="endAt"
-            type="datetime-local"
-            defaultValue={record?.endAt ? formatDateTimeInputValue(new Date(record.endAt)) : ""}
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="DDMMYY"
+            defaultValue={record?.endAt ? formatCompactDateInputValue(new Date(record.endAt)) : ""}
+            disabled={canUseUnknownEndTime && unknownEndTime}
             className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
           />
+          <p className="text-xs text-slate-500">
+            {canUseUnknownEndTime && unknownEndTime
+              ? "Unknown end time records stay active until you update them manually."
+              : "Records flag at 0000 on the day after the end date."}
+          </p>
         </div>
       </div>
+
+      {canUseUnknownEndTime ? (
+        <label className="flex items-center gap-3 rounded-2xl border border-black/10 px-4 py-3 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={unknownEndTime}
+            onChange={(event) => setUnknownEndTime(event.target.checked)}
+            className="size-4 rounded border-black/20"
+          />
+          Unknown End Time
+        </label>
+      ) : null}
 
       <div className="grid gap-3 md:grid-cols-2">
         <label className="flex items-center gap-3 rounded-2xl border border-black/10 px-4 py-3 text-sm text-slate-700">
@@ -241,7 +247,7 @@ export function RecordForm({
 
       {category === "STATUS_RESTRICTION" ? (
         <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Status restrictions should usually carry start and end times so the confirmation workflow
+          Status records should usually carry start and end dates so the confirmation workflow
           can surface them safely.
         </p>
       ) : null}

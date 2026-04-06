@@ -1,4 +1,5 @@
 import { renderNamedList, renderTemplate } from "@/lib/formatting";
+import { renderDetailedRecordList } from "@/lib/generators/parade-state";
 import { DEFAULT_TEMPLATE_BODIES } from "@/lib/templates";
 
 export type BookInInput = {
@@ -7,11 +8,11 @@ export type BookInInput = {
   presentStrength: number;
   groupedRecords: {
     ma_oa: Array<{ rank: string; name: string; details?: string }>;
-    mc: Array<{ rank: string; name: string; details?: string }>;
-    rso: Array<{ rank: string; name: string; details?: string }>;
-    rsi: Array<{ rank: string; name: string; details?: string }>;
-    cl: Array<{ rank: string; name: string; details?: string }>;
-    others: Array<{ rank: string; name: string; details?: string }>;
+    mc: Array<{ rank: string; name: string; details?: string; startAt?: Date | null; endAt?: Date | null; unknownEndTime?: boolean }>;
+    rso: Array<{ rank: string; name: string; details?: string; startAt?: Date | null; endAt?: Date | null; unknownEndTime?: boolean }>;
+    rsi: Array<{ rank: string; name: string; details?: string; startAt?: Date | null; endAt?: Date | null; unknownEndTime?: boolean }>;
+    cl: Array<{ rank: string; name: string; details?: string; startAt?: Date | null; endAt?: Date | null; unknownEndTime?: boolean }>;
+    others: Array<{ rank: string; name: string; details?: string; startAt?: Date | null; endAt?: Date | null; unknownEndTime?: boolean }>;
   };
 };
 
@@ -24,10 +25,10 @@ export function generateBookInMessage(
     totalStrength: input.totalStrength,
     presentStrength: input.presentStrength,
     ma_oaBlock: renderNamedList(input.groupedRecords.ma_oa),
-    mcBlock: renderNamedList(input.groupedRecords.mc),
-    rsoBlock: renderNamedList(input.groupedRecords.rso),
-    rsiBlock: renderNamedList(input.groupedRecords.rsi),
-    clBlock: renderNamedList(input.groupedRecords.cl),
-    othersBlock: renderNamedList(input.groupedRecords.others),
+    mcBlock: renderDetailedRecordList(input.groupedRecords.mc),
+    rsoBlock: renderDetailedRecordList(input.groupedRecords.rso),
+    rsiBlock: renderDetailedRecordList(input.groupedRecords.rsi),
+    clBlock: renderDetailedRecordList(input.groupedRecords.cl),
+    othersBlock: renderDetailedRecordList(input.groupedRecords.others),
   }).trim();
 }

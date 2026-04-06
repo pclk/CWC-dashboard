@@ -11,7 +11,6 @@ type CadetRow = {
   id: string;
   rank: string;
   displayName: string;
-  serviceNumber: string | null;
   active: boolean;
   sortOrder: number;
   notes: string | null;
@@ -35,7 +34,7 @@ export function CadetTable({ cadets }: { cadets: CadetRow[] }) {
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
-              onClick={() => setEditingCadet({ id: "", rank: "ME4T", displayName: "", serviceNumber: "", active: true, sortOrder: 0, notes: "" })}
+              onClick={() => setEditingCadet({ id: "", rank: "ME4T", displayName: "", active: true, sortOrder: 0, notes: "" })}
               className="rounded-2xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-teal-800"
             >
               New Cadet
@@ -60,7 +59,6 @@ export function CadetTable({ cadets }: { cadets: CadetRow[] }) {
               <tr>
                 <th className="px-4 py-3 font-medium">Rank</th>
                 <th className="px-4 py-3 font-medium">Name</th>
-                <th className="px-4 py-3 font-medium">Svc No.</th>
                 <th className="px-4 py-3 font-medium">Order</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Notes</th>
@@ -72,7 +70,6 @@ export function CadetTable({ cadets }: { cadets: CadetRow[] }) {
                 <tr key={cadet.id} className={!cadet.active ? "bg-slate-50/60 text-slate-500" : ""}>
                   <td className="px-4 py-3">{cadet.rank}</td>
                   <td className="px-4 py-3 font-medium text-slate-900">{cadet.displayName}</td>
-                  <td className="px-4 py-3">{cadet.serviceNumber || "-"}</td>
                   <td className="px-4 py-3">{cadet.sortOrder}</td>
                   <td className="px-4 py-3">
                     <span

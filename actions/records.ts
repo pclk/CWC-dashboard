@@ -3,11 +3,11 @@
 import { ResolutionState } from "@prisma/client";
 
 import { failure, parseCheckbox, parseNumber, parseOptionalString, revalidateOperationalPages, success, type ActionResult } from "@/actions/helpers";
+import { parseSingaporeDateInputToUtc } from "@/lib/date";
 import { assertCadetOwnership, assertRecordOwnership } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { deriveResolutionState } from "@/lib/strength";
-import { parseSingaporeInputToUtc } from "@/lib/date";
 import { recordDeleteSchema, recordResolveSchema, recordSchema } from "@/lib/validators/record";
 
 export async function upsertRecordAction(formData: FormData): Promise<ActionResult> {
@@ -21,6 +21,7 @@ export async function upsertRecordAction(formData: FormData): Promise<ActionResu
     details: parseOptionalString(formData.get("details")),
     startAt: parseOptionalString(formData.get("startAt")),
     endAt: parseOptionalString(formData.get("endAt")),
+    unknownEndTime: parseCheckbox(formData.get("unknownEndTime")),
     affectsStrength: parseCheckbox(formData.get("affectsStrength")),
     countsNotInCamp: parseCheckbox(formData.get("countsNotInCamp")),
     sortOrder: parseNumber(formData.get("sortOrder")),
@@ -32,8 +33,20 @@ export async function upsertRecordAction(formData: FormData): Promise<ActionResu
 
   await assertCadetOwnership(userId, parsed.data.cadetId);
 
-  const startAt = parseSingaporeInputToUtc(parsed.data.startAt);
-  const endAt = parseSingaporeInputToUtc(parsed.data.endAt);
+  let startAt: Date | null;
+  let endAt: Date | null;
+
+  try {
+    startAt = parseSingaporeDateInputToUtc(parsed.data.startAt);
+    endAt = parsed.data.unknownEndTime ? null : parseSingaporeDateInputToUtc(parsed.data.endAt);
+  } catch (error) {
+    return failure(error instanceof Error ? error.message : "Invalid record date.");
+  }
+
+  if (startAt && endAt && endAt < startAt) {
+    return failure("End date cannot be before start date.");
+  }
+
   const resolutionState = deriveResolutionState({
     endAt,
     resolutionState: ResolutionState.ACTIVE,
@@ -53,6 +66,7 @@ export async function upsertRecordAction(formData: FormData): Promise<ActionResu
         details: parsed.data.details || null,
         startAt,
         endAt,
+        unknownEndTime: parsed.data.unknownEndTime,
         affectsStrength: parsed.data.affectsStrength,
         countsNotInCamp: parsed.data.countsNotInCamp,
         sortOrder: parsed.data.sortOrder,
@@ -70,6 +84,7 @@ export async function upsertRecordAction(formData: FormData): Promise<ActionResu
         details: parsed.data.details || null,
         startAt,
         endAt,
+        unknownEndTime: parsed.data.unknownEndTime,
         affectsStrength: parsed.data.affectsStrength,
         countsNotInCamp: parsed.data.countsNotInCamp,
         sortOrder: parsed.data.sortOrder,

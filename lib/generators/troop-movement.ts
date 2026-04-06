@@ -1,6 +1,15 @@
 import { renderTemplate } from "@/lib/formatting";
 import { DEFAULT_TEMPLATE_BODIES } from "@/lib/templates";
 
+export const DEFAULT_TROOP_MOVEMENT_LOCATION_SUGGESTIONS = [
+  "CSTH",
+  "BUNK",
+  "GUARDHOUSE",
+  "REFUSE CENTRE",
+  "MO",
+  "CYTEC",
+] as const;
+
 export type TroopMovementInput = {
   unitName: string;
   fromLocation: string;

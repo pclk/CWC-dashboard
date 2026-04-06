@@ -12,6 +12,13 @@ const supportedAnnouncementTypes = new Set<TemplateType>([
   TemplateType.MTR_1030,
   TemplateType.MTR_1630,
   TemplateType.LAST_PARADE_1730,
+  TemplateType.MORNING_LAB,
+  TemplateType.FIRST_PARADE,
+  TemplateType.PT,
+  TemplateType.CURRENT_AFFAIR_SHARING,
+  TemplateType.CURRENT_AFFAIR_REMINDER,
+  TemplateType.REQUEST_DI_FP,
+  TemplateType.REQUEST_LP,
 ]);
 
 export async function updateAnnouncementTemplateAction(
@@ -35,6 +42,7 @@ export async function updateAnnouncementTemplateAction(
     },
   });
 
+  revalidatePath("/dashboard");
   revalidatePath("/announcements");
   revalidatePath("/settings");
   return success("Announcement template updated.");

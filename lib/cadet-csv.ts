@@ -3,21 +3,16 @@ import { cadetSchema } from "@/lib/validators/cadet";
 export type ParsedCadetCsvRow = {
   rank: string;
   displayName: string;
-  serviceNumber?: string;
   active: boolean;
   sortOrder: number;
   notes?: string;
   lineNumber: number;
 };
 
-const HEADER_ALIASES: Record<string, "rank" | "displayName" | "serviceNumber" | "active" | "sortOrder" | "notes"> = {
+const HEADER_ALIASES: Record<string, "rank" | "displayName" | "active" | "sortOrder" | "notes"> = {
   rank: "rank",
   displayname: "displayName",
   name: "displayName",
-  servicenumber: "serviceNumber",
-  serviceno: "serviceNumber",
-  svcnumber: "serviceNumber",
-  svcno: "serviceNumber",
   active: "active",
   status: "active",
   sortorder: "sortOrder",
@@ -53,7 +48,6 @@ export function parseCadetCsv(csvText: string): ParsedCadetCsvRow[] {
 
     const rawRank = getCell(row, headerIndexes.rank);
     const rawDisplayName = getCell(row, headerIndexes.displayName);
-    const rawServiceNumber = getCell(row, headerIndexes.serviceNumber);
     const rawActive = getCell(row, headerIndexes.active);
     const rawSortOrder = getCell(row, headerIndexes.sortOrder);
     const rawNotes = getCell(row, headerIndexes.notes);
@@ -61,7 +55,6 @@ export function parseCadetCsv(csvText: string): ParsedCadetCsvRow[] {
     const parsed = cadetSchema.safeParse({
       rank: rawRank || "ME4T",
       displayName: rawDisplayName,
-      serviceNumber: rawServiceNumber,
       active: parseActiveValue(rawActive, lineNumber),
       sortOrder: parseSortOrderValue(rawSortOrder, lineNumber),
       notes: rawNotes,
@@ -72,7 +65,11 @@ export function parseCadetCsv(csvText: string): ParsedCadetCsvRow[] {
     }
 
     parsedRows.push({
-      ...parsed.data,
+      rank: parsed.data.rank,
+      displayName: parsed.data.displayName,
+      active: parsed.data.active,
+      sortOrder: parsed.data.sortOrder,
+      notes: parsed.data.notes || undefined,
       lineNumber,
     });
   }
@@ -81,7 +78,7 @@ export function parseCadetCsv(csvText: string): ParsedCadetCsvRow[] {
 }
 
 function getHeaderIndexes(headers: string[]) {
-  const indexes: Partial<Record<"rank" | "displayName" | "serviceNumber" | "active" | "sortOrder" | "notes", number>> = {};
+  const indexes: Partial<Record<"rank" | "displayName" | "active" | "sortOrder" | "notes", number>> = {};
 
   headers.forEach((header, index) => {
     const canonicalKey = HEADER_ALIASES[normalizeHeader(header)];

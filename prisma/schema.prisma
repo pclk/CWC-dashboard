@@ -19,6 +19,10 @@ model User {
   cadets               Cadet[]
   records              CadetRecord[]
   appointments         Appointment[]
+  weeklyTodos          WeeklyTodo[]
+  currentAffairSharings CurrentAffairSharing[]
+  dutyInstructors      DutyInstructor[]
+  bunks                Bunk[]
   paradeStateSnapshots ParadeStateSnapshot[]
   troopMovements       TroopMovement[]
   templates            MessageTemplate[]
@@ -34,6 +38,35 @@ model UserSettings {
   defaultLastParadeText   String?
   defaultMtrMorningText   String?
   defaultMtrAfternoonText String?
+  announcementMtr1030Time String?
+  announcementMtr1030Location String?
+  announcementMtr1630Time String?
+  announcementMtr1630Location String?
+  announcementLastParadeTime String?
+  announcementLastParadeLocation String?
+  announcementMorningLabTime String?
+  announcementMorningLabIsPt Boolean @default(false)
+  announcementFirstParadeTime String?
+  announcementPtTime String?
+  announcementPtActivity String?
+  announcementRequestDiRecipient String?
+  announcementRequestDiRank String?
+  announcementRequestDiName String?
+  announcementRequestDiLocation String?
+  announcementRequestDiTime String?
+  announcementRequestDiFirstTime Boolean @default(false)
+  announcementRequestLpRecipient String?
+  announcementRequestLpLocation String?
+  announcementRequestLpTime String?
+  paradeDraftReportType   String?
+  paradeDraftReportAtValue String?
+  paradeDraftReportTimeLabel String?
+  paradeDraftPrefixOverride String?
+  movementDraftFromLocation String?
+  movementDraftToLocation String?
+  movementDraftStrengthText String?
+  movementDraftArrivalTimeText String?
+  movementDraftRemarksText String?
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
@@ -45,7 +78,6 @@ model Cadet {
   userId        String
   rank          String   @default("ME4T")
   displayName   String
-  serviceNumber String?
   active        Boolean  @default(true)
   sortOrder     Int      @default(0)
   notes         String?
@@ -86,6 +118,7 @@ model CadetRecord {
   details            String?
   startAt            DateTime?
   endAt              DateTime?
+  unknownEndTime     Boolean         @default(false)
   affectsStrength    Boolean         @default(true)
   countsNotInCamp    Boolean         @default(false)
   resolutionState    ResolutionState @default(ACTIVE)
@@ -110,6 +143,9 @@ model Appointment {
   venue         String?
   appointmentAt DateTime
   notes         String?
+  affectsMorningStrength   Boolean  @default(false)
+  affectsAfternoonStrength Boolean  @default(false)
+  affectsEveningStrength   Boolean  @default(false)
   completed     Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -118,6 +154,75 @@ model Appointment {
   cadet Cadet? @relation(fields: [cadetId], references: [id], onDelete: SetNull)
 
   @@index([userId, appointmentAt, completed])
+}
+
+model WeeklyTodo {
+  id                 String   @id @default(cuid())
+  userId             String
+  title              String
+  systemKey          String?
+  sortOrder          Int      @default(0)
+  completedWeekStart DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, sortOrder])
+  @@unique([userId, systemKey])
+}
+
+enum CurrentAffairScope {
+  LOCAL
+  OVERSEAS
+  TBC
+}
+
+model CurrentAffairSharing {
+  id          String             @id @default(cuid())
+  userId      String
+  sharingDate DateTime
+  scope       CurrentAffairScope
+  presenter   String
+  title       String
+  sortOrder   Int                @default(0)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, sharingDate])
+}
+
+model DutyInstructor {
+  id        String   @id @default(cuid())
+  userId    String
+  dutyDate  DateTime
+  rank      String
+  name      String
+  reserve   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dutyDate])
+  @@index([userId, dutyDate])
+}
+
+model Bunk {
+  id         String   @id @default(cuid())
+  userId     String
+  bunkNumber Int
+  bunkId     String
+  personnel  String[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bunkNumber])
+  @@index([userId, bunkNumber])
 }
 
 model ParadeStateSnapshot {
@@ -158,6 +263,13 @@ enum TemplateType {
   MTR_1030
   MTR_1630
   LAST_PARADE_1730
+  MORNING_LAB
+  FIRST_PARADE
+  PT
+  CURRENT_AFFAIR_SHARING
+  CURRENT_AFFAIR_REMINDER
+  REQUEST_DI_FP
+  REQUEST_LP
   BOOK_IN
 }
 

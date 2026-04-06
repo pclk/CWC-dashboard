@@ -1,4 +1,5 @@
 import {
+  type Bunk,
   type Cadet,
   type CadetRecord,
   type MessageTemplate,
@@ -8,7 +9,15 @@ import {
   TemplateType,
 } from "@prisma/client";
 
-import { formatCompactDmyHm, getSingaporeDayBounds } from "@/lib/date";
+import {
+  formatCompactDmyHm,
+  getCurrentAffairWeekBounds,
+  getSingaporeDayBounds,
+  getSingaporeStrengthPeriod,
+  getSingaporeWeekBounds,
+  type StrengthPeriod,
+} from "@/lib/date";
+import { WEEKLY_TODO_SYSTEM_KEYS } from "@/lib/announcement-config";
 import { type BookInInput } from "@/lib/generators/book-in";
 import { buildParadeCaaLine, type ParadeStateInput } from "@/lib/generators/parade-state";
 import { renderTemplate } from "@/lib/formatting";
@@ -18,7 +27,12 @@ import {
   computeNotInCampCounts,
   OPERATIONAL_RECORD_STATES,
 } from "@/lib/strength";
-import { DEFAULT_SETTINGS_VALUES, DEFAULT_TEMPLATE_BODIES, DEFAULT_TEMPLATE_DEFINITIONS } from "@/lib/templates";
+import {
+  DEFAULT_SETTINGS_VALUES,
+  DEFAULT_TEMPLATE_BODIES,
+  DEFAULT_TEMPLATE_DEFINITIONS,
+  LEGACY_DEFAULT_TEMPLATE_BODIES,
+} from "@/lib/templates";
 
 type OperationalRecordWithCadet = Prisma.CadetRecordGetPayload<{
   include: {
@@ -33,6 +47,29 @@ type OperationalRecordWithCadet = Prisma.CadetRecordGetPayload<{
     };
   };
 }>;
+
+type AppointmentWithCadet = Prisma.AppointmentGetPayload<{
+  include: {
+    cadet: {
+      select: {
+        id: true;
+        rank: true;
+        displayName: true;
+        active: true;
+        sortOrder: true;
+      };
+    };
+  };
+}>;
+
+type CurrentAffairSharingRow = Prisma.CurrentAffairSharingGetPayload<{}>;
+type DutyInstructorRow = Prisma.DutyInstructorGetPayload<{}>;
+type WeeklyTodoRow = Prisma.WeeklyTodoGetPayload<{}>;
+
+const DEFAULT_WEEKLY_TODOS = [
+  { systemKey: WEEKLY_TODO_SYSTEM_KEYS.SBA_IC, title: "SBA IC", sortOrder: 0 },
+  { systemKey: WEEKLY_TODO_SYSTEM_KEYS.CA_SHARING, title: "CA sharing", sortOrder: 1 },
+] as const;
 
 function sortCadets(cadets: Cadet[]) {
   return [...cadets].sort(
@@ -51,6 +88,53 @@ function sortOperationalRecords(records: OperationalRecordWithCadet[]) {
   );
 }
 
+function sortAppointments(appointments: AppointmentWithCadet[]) {
+  return [...appointments].sort(
+    (left, right) =>
+      left.appointmentAt.getTime() - right.appointmentAt.getTime() ||
+      (left.cadet?.sortOrder ?? Number.MAX_SAFE_INTEGER) -
+        (right.cadet?.sortOrder ?? Number.MAX_SAFE_INTEGER) ||
+      (left.cadet?.displayName ?? "").localeCompare(right.cadet?.displayName ?? ""),
+  );
+}
+
+function sortWeeklyTodos(todos: WeeklyTodoRow[]) {
+  return [...todos].sort(
+    (left, right) =>
+      left.sortOrder - right.sortOrder ||
+      left.title.localeCompare(right.title) ||
+      left.createdAt.getTime() - right.createdAt.getTime(),
+  );
+}
+
+function sortCurrentAffairSharings(entries: CurrentAffairSharingRow[]) {
+  return [...entries].sort(
+    (left, right) =>
+      left.sharingDate.getTime() - right.sharingDate.getTime() ||
+      left.sortOrder - right.sortOrder ||
+      left.presenter.localeCompare(right.presenter) ||
+      left.title.localeCompare(right.title),
+  );
+}
+
+function sortDutyInstructors(entries: DutyInstructorRow[]) {
+  return [...entries].sort(
+    (left, right) =>
+      left.dutyDate.getTime() - right.dutyDate.getTime() ||
+      left.rank.localeCompare(right.rank) ||
+      left.name.localeCompare(right.name),
+  );
+}
+
+function sortBunks(bunks: Bunk[]) {
+  return [...bunks].sort(
+    (left, right) =>
+      left.bunkNumber - right.bunkNumber ||
+      left.bunkId.localeCompare(right.bunkId) ||
+      left.createdAt.getTime() - right.createdAt.getTime(),
+  );
+}
+
 function buildTemplateMap(rows: MessageTemplate[]) {
   const map = { ...DEFAULT_TEMPLATE_BODIES } as Record<TemplateType, string>;
 
@@ -65,7 +149,56 @@ function buildTemplateMap(rows: MessageTemplate[]) {
     }
   }
 
+  map.PARADE_NIGHT = map.PARADE_MORNING;
+
   return map;
+}
+
+async function syncLegacyDefaultTemplateBodies(userId: string) {
+  const templateMigrations = Object.entries(LEGACY_DEFAULT_TEMPLATE_BODIES) as Array<
+    [TemplateType, readonly string[]]
+  >;
+
+  await Promise.all(
+    templateMigrations.flatMap(([type, legacyBodies]) =>
+      legacyBodies.map((legacyBody) =>
+        prisma.messageTemplate.updateMany({
+          where: {
+            userId,
+            type,
+            isDefault: true,
+            body: legacyBody,
+          },
+          data: {
+            body: DEFAULT_TEMPLATE_BODIES[type],
+          },
+        }),
+      ),
+    ),
+  );
+}
+
+async function ensureDefaultWeeklyTodos(userId: string) {
+  const existing = await prisma.weeklyTodo.findMany({
+    where: { userId },
+    select: { systemKey: true },
+  });
+  const existingKeys = new Set(existing.map((item) => item.systemKey).filter(Boolean));
+  const missing = DEFAULT_WEEKLY_TODOS.filter((item) => !existingKeys.has(item.systemKey));
+
+  if (!missing.length) {
+    return;
+  }
+
+  await prisma.weeklyTodo.createMany({
+    data: missing.map((item) => ({
+      userId,
+      title: item.title,
+      systemKey: item.systemKey,
+      sortOrder: item.sortOrder,
+    })),
+    skipDuplicates: true,
+  });
 }
 
 function buildRecordDetails(record: Pick<CadetRecord, "title" | "details">) {
@@ -79,17 +212,34 @@ function buildRecordDetails(record: Pick<CadetRecord, "title" | "details">) {
   return title || details || undefined;
 }
 
+function buildAppointmentSummary(
+  appointment: Pick<AppointmentWithCadet, "title" | "venue" | "appointmentAt">,
+) {
+  const title = appointment.title.trim();
+  const venue = appointment.venue?.trim() ?? "";
+  const subject =
+    title && venue
+      ? title.toLowerCase().includes(venue.toLowerCase())
+        ? title
+        : `${venue} ${title}`
+      : title || venue || "Appointment";
+
+  return `${subject} (${formatCompactDmyHm(appointment.appointmentAt)})`;
+}
+
 function toNamedRecordItem(record: OperationalRecordWithCadet) {
   return {
     rank: record.cadet.rank,
     name: record.cadet.displayName,
     details: buildRecordDetails(record),
+    startAt: record.startAt,
+    endAt: record.endAt,
+    unknownEndTime: record.unknownEndTime,
   };
 }
 
 function groupOperationalRecords(records: OperationalRecordWithCadet[]) {
   return {
-    ma_oa: records.filter((record) => record.category === RecordCategory.MA_OA).map(toNamedRecordItem),
     mc: records.filter((record) => record.category === RecordCategory.MC).map(toNamedRecordItem),
     rso: records.filter((record) => record.category === RecordCategory.RSO).map(toNamedRecordItem),
     rsi: records.filter((record) => record.category === RecordCategory.RSI).map(toNamedRecordItem),
@@ -100,6 +250,158 @@ function groupOperationalRecords(records: OperationalRecordWithCadet[]) {
     status: records
       .filter((record) => record.category === RecordCategory.STATUS_RESTRICTION)
       .map(toNamedRecordItem),
+  };
+}
+
+const TROOP_MOVEMENT_CATEGORY_ORDER = [
+  RecordCategory.MC,
+  RecordCategory.HL,
+  RecordCategory.RSO,
+  RecordCategory.RSI,
+  RecordCategory.CL,
+  RecordCategory.MA_OA,
+  RecordCategory.OTHER,
+] as const;
+
+const TROOP_MOVEMENT_CATEGORY_SET = new Set<RecordCategory>(TROOP_MOVEMENT_CATEGORY_ORDER);
+
+function getTroopMovementCategoryLabel(category: RecordCategory) {
+  switch (category) {
+    case RecordCategory.MA_OA:
+      return "MA/OA";
+    case RecordCategory.STATUS_RESTRICTION:
+      return "STATUS";
+    default:
+      return category;
+  }
+}
+
+function buildTroopMovementRemarkSuggestions(records: OperationalRecordWithCadet[]) {
+  const groupedCadets = new Map<RecordCategory, Map<string, string>>();
+
+  for (const record of records) {
+    if (record.category === RecordCategory.STATUS_RESTRICTION) {
+      continue;
+    }
+
+    const categoryCadets = groupedCadets.get(record.category) ?? new Map<string, string>();
+    categoryCadets.set(record.cadetId, record.cadet.displayName);
+    groupedCadets.set(record.category, categoryCadets);
+  }
+
+  const orderedCategories = [
+    ...TROOP_MOVEMENT_CATEGORY_ORDER.filter((category) => groupedCadets.has(category)),
+    ...Array.from(groupedCadets.keys()).filter((category) => !TROOP_MOVEMENT_CATEGORY_SET.has(category)),
+  ];
+
+  return orderedCategories.map((category) => {
+    const cadetNames = Array.from(groupedCadets.get(category)?.values() ?? []);
+
+    return `${cadetNames.length}x ${getTroopMovementCategoryLabel(category)}: ${cadetNames.join(", ")}`;
+  });
+}
+
+function inferStrengthPeriod(
+  reportAt: Date,
+  reportType?: "Morning" | "Night" | "Custom",
+  reportTimeLabel?: string | null,
+): StrengthPeriod {
+  if (reportType === "Morning") {
+    return "morning";
+  }
+
+  if (reportType === "Night") {
+    return "evening";
+  }
+
+  const normalizedLabel = reportTimeLabel?.trim().toLowerCase() ?? "";
+
+  if (normalizedLabel.includes("morning") || normalizedLabel.includes("am")) {
+    return "morning";
+  }
+
+  if (normalizedLabel.includes("afternoon") || normalizedLabel.includes("pm")) {
+    return "afternoon";
+  }
+
+  if (normalizedLabel.includes("night") || normalizedLabel.includes("evening")) {
+    return "evening";
+  }
+
+  return getSingaporeStrengthPeriod(reportAt);
+}
+
+function appointmentAffectsStrength(appointment: AppointmentWithCadet, period: StrengthPeriod) {
+  if (period === "morning") {
+    return appointment.affectsMorningStrength;
+  }
+
+  if (period === "afternoon") {
+    return appointment.affectsAfternoonStrength;
+  }
+
+  return appointment.affectsEveningStrength;
+}
+
+function getAppointmentStrengthCadetIds(
+  appointments: AppointmentWithCadet[],
+  reportAt: Date,
+  reportType?: "Morning" | "Night" | "Custom",
+  reportTimeLabel?: string | null,
+) {
+  const { start, end } = getSingaporeDayBounds(reportAt);
+  const strengthPeriod = inferStrengthPeriod(reportAt, reportType, reportTimeLabel);
+
+  return new Set(
+    appointments
+      .filter(
+        (appointment) =>
+          appointment.cadetId &&
+          appointment.cadet?.active &&
+          appointment.appointmentAt >= start &&
+          appointment.appointmentAt <= end &&
+          appointmentAffectsStrength(appointment, strengthPeriod),
+      )
+      .map((appointment) => appointment.cadetId as string),
+  );
+}
+
+function splitAppointmentsForParade(
+  appointments: AppointmentWithCadet[],
+  reportAt: Date,
+  reportType?: "Morning" | "Night" | "Custom",
+  reportTimeLabel?: string | null,
+) {
+  const { start, end } = getSingaporeDayBounds(reportAt);
+  const eligibleAppointments = sortAppointments(
+    appointments.filter((appointment) => appointment.cadetId && appointment.cadet?.active),
+  );
+
+  return {
+    maOaAppointments: eligibleAppointments
+      .filter((appointment) => appointment.appointmentAt >= start && appointment.appointmentAt <= end)
+      .map((appointment) => ({
+        rank: appointment.cadet?.rank ?? "N/A",
+        name: appointment.cadet?.displayName ?? "Unknown",
+        title: appointment.title,
+        venue: appointment.venue,
+        appointmentAt: appointment.appointmentAt,
+      })),
+    upcomingAppointments: eligibleAppointments
+      .filter((appointment) => appointment.appointmentAt > end)
+      .map((appointment) => ({
+        rank: appointment.cadet?.rank ?? "N/A",
+        name: appointment.cadet?.displayName ?? "Unknown",
+        title: appointment.title,
+        venue: appointment.venue,
+        appointmentAt: appointment.appointmentAt,
+      })),
+    affectingCadetIds: getAppointmentStrengthCadetIds(
+      eligibleAppointments,
+      reportAt,
+      reportType,
+      reportTimeLabel,
+    ),
   };
 }
 
@@ -180,17 +482,23 @@ export async function ensureUserConfiguration(userId: string) {
         body: template.body,
         isDefault: template.isDefault,
       })),
+      skipDuplicates: true,
     });
   }
+
+  await syncLegacyDefaultTemplateBodies(userId);
+  await ensureDefaultWeeklyTodos(userId);
 }
 
 export async function syncExpiredRecordStates(userId: string, now = new Date()) {
+  const { start: todayStart } = getSingaporeDayBounds(now);
+
   await prisma.cadetRecord.updateMany({
     where: {
       userId,
       resolutionState: ResolutionState.ACTIVE,
       endAt: {
-        lt: now,
+        lt: todayStart,
       },
     },
     data: {
@@ -358,6 +666,30 @@ export async function getUpcomingAppointments(userId: string, from: Date, to: Da
   return appointments;
 }
 
+async function getPendingAppointmentsFrom(userId: string, from: Date) {
+  return prisma.appointment.findMany({
+    where: {
+      userId,
+      completed: false,
+      appointmentAt: {
+        gte: from,
+      },
+    },
+    include: {
+      cadet: {
+        select: {
+          id: true,
+          rank: true,
+          displayName: true,
+          active: true,
+          sortOrder: true,
+        },
+      },
+    },
+    orderBy: [{ appointmentAt: "asc" }],
+  });
+}
+
 export async function getAppointments(userId: string) {
   return prisma.appointment.findMany({
     where: { userId },
@@ -376,15 +708,104 @@ export async function getAppointments(userId: string) {
   });
 }
 
-export async function computeStrengthSummary(userId: string) {
-  const { activeCadets, operationalRecords } = await getOperationalDataset(userId);
+export async function getWeeklyTodos(userId: string) {
+  await ensureUserConfiguration(userId);
 
-  const absentCadetIds = buildAbsentCadetIds(
+  const todos = await prisma.weeklyTodo.findMany({
+    where: { userId },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+
+  return sortWeeklyTodos(todos);
+}
+
+export async function getCurrentAffairSharingsForWeek(userId: string, date = new Date()) {
+  await ensureUserConfiguration(userId);
+  const { start, end } = getCurrentAffairWeekBounds(date);
+  const entries = await prisma.currentAffairSharing.findMany({
+    where: {
+      userId,
+      sharingDate: {
+        gte: start,
+        lte: end,
+      },
+    },
+    orderBy: [{ sharingDate: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+
+  return sortCurrentAffairSharings(entries);
+}
+
+export async function getCurrentAffairSharingsForDay(userId: string, date = new Date()) {
+  await ensureUserConfiguration(userId);
+  const { start, end } = getSingaporeDayBounds(date);
+  const entries = await prisma.currentAffairSharing.findMany({
+    where: {
+      userId,
+      sharingDate: {
+        gte: start,
+        lte: end,
+      },
+    },
+    orderBy: [{ sharingDate: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+
+  return sortCurrentAffairSharings(entries);
+}
+
+export async function getDutyInstructors(userId: string) {
+  await ensureUserConfiguration(userId);
+
+  const entries = await prisma.dutyInstructor.findMany({
+    where: { userId },
+    orderBy: [{ dutyDate: "asc" }],
+  });
+
+  return sortDutyInstructors(entries);
+}
+
+export async function getDutyInstructorForDate(userId: string, date = new Date()) {
+  await ensureUserConfiguration(userId);
+  const { start, end } = getSingaporeDayBounds(date);
+
+  return prisma.dutyInstructor.findFirst({
+    where: {
+      userId,
+      dutyDate: {
+        gte: start,
+        lte: end,
+      },
+    },
+  });
+}
+
+export async function getBunks(userId: string) {
+  await ensureUserConfiguration(userId);
+
+  const bunks = await prisma.bunk.findMany({
+    where: { userId },
+    orderBy: [{ bunkNumber: "asc" }, { bunkId: "asc" }, { createdAt: "asc" }],
+  });
+
+  return sortBunks(bunks);
+}
+
+export async function computeStrengthSummary(userId: string, now = new Date()) {
+  const { activeCadets, operationalRecords } = await getOperationalDataset(userId);
+  const { start, end } = getSingaporeDayBounds(now);
+  const todayAppointments = await getUpcomingAppointments(userId, start, end);
+
+  const operationalAbsentCadetIds = buildAbsentCadetIds(
     operationalRecords.map((record) => ({
       cadetId: record.cadetId,
       affectsStrength: record.affectsStrength,
     })),
   );
+  const appointmentAbsentCadetIds = getAppointmentStrengthCadetIds(todayAppointments, now);
+  const absentCadetIds = new Set([
+    ...operationalAbsentCadetIds,
+    ...appointmentAbsentCadetIds,
+  ]);
 
   const totalStrength = activeCadets.length;
   const presentStrength = totalStrength - absentCadetIds.size;
@@ -418,15 +839,25 @@ export async function buildParadeStateInput(
     getUserSettings(userId),
   ]);
 
-  const { start, end } = getSingaporeDayBounds(reportAt);
-  const upcomingAppointments = await getUpcomingAppointments(userId, start, end);
+  const { start } = getSingaporeDayBounds(reportAt);
+  const pendingAppointments = await getPendingAppointmentsFrom(userId, start);
 
-  const absentCadetIds = buildAbsentCadetIds(
+  const operationalAbsentCadetIds = buildAbsentCadetIds(
     operationalRecords.map((record) => ({
       cadetId: record.cadetId,
       affectsStrength: record.affectsStrength,
     })),
   );
+  const appointmentBuckets = splitAppointmentsForParade(
+    pendingAppointments,
+    reportAt,
+    options?.reportType,
+    options?.reportTimeLabel,
+  );
+  const absentCadetIds = new Set([
+    ...operationalAbsentCadetIds,
+    ...appointmentBuckets.affectingCadetIds,
+  ]);
 
   const prefixTemplate =
     options?.prefixOverride?.trim() ||
@@ -451,14 +882,8 @@ export async function buildParadeStateInput(
       })),
     ),
     groupedRecords: groupOperationalRecords(operationalRecords),
-    upcomingAppointments: upcomingAppointments
-      .filter((appointment) => appointment.cadet?.active)
-      .map((appointment) => ({
-        rank: appointment.cadet?.rank ?? "N/A",
-        name: appointment.cadet?.displayName ?? "Unknown",
-        title: appointment.title,
-        appointmentAt: appointment.appointmentAt,
-      })),
+    maOaAppointments: appointmentBuckets.maOaAppointments,
+    upcomingAppointments: appointmentBuckets.upcomingAppointments,
   };
 }
 
@@ -467,22 +892,36 @@ export async function buildBookInInput(userId: string): Promise<BookInInput> {
     getOperationalDataset(userId),
     getUserSettings(userId),
   ]);
+  const { start, end } = getSingaporeDayBounds();
+  const todayAppointments = await getUpcomingAppointments(userId, start, end);
 
-  const absentCadetIds = buildAbsentCadetIds(
+  const operationalAbsentCadetIds = buildAbsentCadetIds(
     operationalRecords.map((record) => ({
       cadetId: record.cadetId,
       affectsStrength: record.affectsStrength,
     })),
   );
+  const appointmentAbsentCadetIds = getAppointmentStrengthCadetIds(todayAppointments, new Date());
+  const absentCadetIds = new Set([
+    ...operationalAbsentCadetIds,
+    ...appointmentAbsentCadetIds,
+  ]);
 
   const groupedRecords = groupOperationalRecords(operationalRecords);
+  const maOaAppointments = sortAppointments(
+    todayAppointments.filter((appointment) => appointment.cadetId && appointment.cadet?.active),
+  ).map((appointment) => ({
+    rank: appointment.cadet?.rank ?? "N/A",
+    name: appointment.cadet?.displayName ?? "Unknown",
+    details: buildAppointmentSummary(appointment),
+  }));
 
   return {
     unitName: settings.unitName,
     totalStrength: activeCadets.length,
     presentStrength: activeCadets.length - absentCadetIds.size,
     groupedRecords: {
-      ma_oa: groupedRecords.ma_oa,
+      ma_oa: maOaAppointments,
       mc: groupedRecords.mc,
       rso: groupedRecords.rso,
       rsi: groupedRecords.rsi,
@@ -576,21 +1015,9 @@ export async function buildTroopMovementContext(userId: string) {
     getOperationalRecords(userId),
   ]);
 
-  const suggestions = operationalRecords
-    .map((record) => {
-      const detail = buildRecordDetails(record);
-      const categoryLabel =
-        record.category === RecordCategory.STATUS_RESTRICTION ? "Restriction" : record.category;
-
-      return `${record.cadet.rank} ${record.cadet.displayName} - ${categoryLabel}${
-        detail ? ` (${detail})` : ""
-      }`;
-    })
-    .slice(0, 12);
-
   return {
     unitName: settings.unitName,
     suggestedStrengthText: `${summary.presentStrength}/${summary.totalStrength}`,
-    remarkSuggestions: suggestions,
+    remarkSuggestions: buildTroopMovementRemarkSuggestions(operationalRecords),
   };
 }
