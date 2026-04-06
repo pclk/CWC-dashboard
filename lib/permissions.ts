@@ -103,3 +103,16 @@ export async function assertDutyInstructorOwnership(userId: string, dutyInstruct
 
   return dutyInstructor;
 }
+
+export async function assertBunkOwnership(userId: string, bunkId: string) {
+  const bunk = await prisma.bunk.findFirst({
+    where: { id: bunkId, userId },
+    select: { id: true },
+  });
+
+  if (!bunk) {
+    throw new Error("Bunk entry not found");
+  }
+
+  return bunk;
+}

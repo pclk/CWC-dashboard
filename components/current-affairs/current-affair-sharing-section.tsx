@@ -8,7 +8,11 @@ import {
   upsertCurrentAffairSharingAction,
 } from "@/actions/current-affair-sharing";
 import { MessageEditor } from "@/components/generators/message-editor";
-import { formatCompactDateInputValue } from "@/lib/date";
+import { SearchableCombobox } from "@/components/generators/searchable-combobox";
+import {
+  CURRENT_AFFAIR_WEEKDAY_OPTIONS,
+  formatCurrentAffairWeekday,
+} from "@/lib/date";
 import {
   formatCurrentAffairDateRange,
   generateCurrentAffairReminderMessage,
@@ -18,7 +22,7 @@ import {
 type CurrentAffairEntry = {
   id: string;
   sharingDate: Date | string;
-  scope: "LOCAL" | "OVERSEAS";
+  scope: "LOCAL" | "OVERSEAS" | "TBC";
   presenter: string;
   title: string;
   sortOrder: number;
@@ -27,7 +31,7 @@ type CurrentAffairEntry = {
 type CurrentAffairFormState = {
   id: string;
   sharingDate: Date | string;
-  scope: "LOCAL" | "OVERSEAS";
+  scope: "LOCAL" | "OVERSEAS" | "TBC";
   presenter: string;
   title: string;
   sortOrder: number;
@@ -42,6 +46,28 @@ const EMPTY_FORM: CurrentAffairFormState = {
   sortOrder: 0,
 };
 
+function getSharingDayValue(sharingDate: Date | string) {
+  const weekday = formatCurrentAffairWeekday(new Date(sharingDate));
+
+  return CURRENT_AFFAIR_WEEKDAY_OPTIONS.includes(
+    weekday as (typeof CURRENT_AFFAIR_WEEKDAY_OPTIONS)[number],
+  )
+    ? weekday
+    : "MON";
+}
+
+function formatScopeLabel(scope: CurrentAffairEntry["scope"]) {
+  if (scope === "LOCAL") {
+    return "Local";
+  }
+
+  if (scope === "OVERSEAS") {
+    return "Overseas";
+  }
+
+  return "TBC";
+}
+
 export function CurrentAffairSharingSection({
   id,
   templateBody,
@@ -50,6 +76,7 @@ export function CurrentAffairSharingSection({
   entries,
   rangeStart,
   rangeEnd,
+  presenterSuggestions,
 }: {
   id: string;
   templateBody: string;
@@ -58,6 +85,7 @@ export function CurrentAffairSharingSection({
   entries: CurrentAffairEntry[];
   rangeStart: Date | string;
   rangeEnd: Date | string;
+  presenterSuggestions: string[];
 }) {
   const router = useRouter();
   const [editingEntry, setEditingEntry] = useState<CurrentAffairFormState | null>(null);
@@ -69,7 +97,7 @@ export function CurrentAffairSharingSection({
     dateRange,
     entries: entries.map((entry) => ({
       sharingDate: new Date(entry.sharingDate),
-      scope: entry.scope === "LOCAL" ? "Local" : "Overseas",
+      scope: formatScopeLabel(entry.scope),
       presenter: entry.presenter,
       title: entry.title,
     })),
@@ -95,6 +123,7 @@ export function CurrentAffairSharingSection({
 
       {editingEntry ? (
         <form
+          key={editingEntry.id || "new"}
           action={(formData) => {
             setError(null);
             startTransition(async () => {
@@ -115,16 +144,18 @@ export function CurrentAffairSharingSection({
             <input type="hidden" name="id" defaultValue={editingEntry.id} />
 
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-700">Date</label>
-              <input
-                name="sharingDate"
-                type="text"
-                inputMode="numeric"
-                autoComplete="off"
-                placeholder="DDMMYY"
-                defaultValue={formatCompactDateInputValue(new Date(editingEntry.sharingDate))}
+              <label className="block text-sm font-medium text-slate-700">Day</label>
+              <select
+                name="sharingDay"
+                defaultValue={getSharingDayValue(editingEntry.sharingDate)}
                 className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-              />
+              >
+                {CURRENT_AFFAIR_WEEKDAY_OPTIONS.map((weekday) => (
+                  <option key={weekday} value={weekday}>
+                    {weekday}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="space-y-2">
@@ -136,15 +167,22 @@ export function CurrentAffairSharingSection({
               >
                 <option value="LOCAL">Local</option>
                 <option value="OVERSEAS">Overseas</option>
+                <option value="TBC">TBC</option>
               </select>
             </div>
 
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-700">Presenter</label>
-              <input
-                name="presenter"
-                defaultValue={editingEntry.presenter}
-                className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
+              <input type="hidden" name="presenter" value={editingEntry.presenter} />
+              <SearchableCombobox
+                label="Presenter"
+                value={editingEntry.presenter}
+                onValueChange={(value) =>
+                  setEditingEntry((current) => (current ? { ...current, presenter: value } : current))
+                }
+                suggestions={presenterSuggestions}
+                placeholder="Search cadet"
+                emptyMessage="No cadets match the search."
+                autoCapitalize="words"
               />
             </div>
 
@@ -195,7 +233,7 @@ export function CurrentAffairSharingSection({
           <table className="min-w-full divide-y divide-black/10 text-left text-sm">
             <thead className="bg-slate-50 text-slate-600">
               <tr>
-                <th className="px-4 py-3 font-medium">Date</th>
+                <th className="px-4 py-3 font-medium">Day</th>
                 <th className="px-4 py-3 font-medium">Scope</th>
                 <th className="px-4 py-3 font-medium">Presenter</th>
                 <th className="px-4 py-3 font-medium">Title</th>
@@ -207,10 +245,10 @@ export function CurrentAffairSharingSection({
                 entries.map((entry) => (
                   <tr key={entry.id}>
                     <td className="px-4 py-3 text-slate-700">
-                      {formatCompactDateInputValue(new Date(entry.sharingDate))}
+                      {formatCurrentAffairWeekday(new Date(entry.sharingDate))}
                     </td>
                     <td className="px-4 py-3 text-slate-700">
-                      {entry.scope === "LOCAL" ? "Local" : "Overseas"}
+                      {formatScopeLabel(entry.scope)}
                     </td>
                     <td className="px-4 py-3 font-medium text-slate-900">{entry.presenter}</td>
                     <td className="px-4 py-3 text-slate-700">{entry.title}</td>
@@ -277,7 +315,7 @@ export function CurrentAffairSharingSection({
             dateRange,
             entries: entries.map((entry) => ({
               sharingDate: new Date(entry.sharingDate),
-              scope: entry.scope === "LOCAL" ? "Local" : "Overseas",
+              scope: formatScopeLabel(entry.scope),
               presenter: entry.presenter,
               title: entry.title,
             })),

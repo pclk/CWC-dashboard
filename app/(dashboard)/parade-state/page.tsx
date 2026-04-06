@@ -70,8 +70,7 @@ export default async function ParadeStatePage({
   return (
     <ParadeStatePreview
       initialInput={initialInput}
-      morningTemplate={settingsBundle.templateMap.PARADE_MORNING}
-      nightTemplate={settingsBundle.templateMap.PARADE_NIGHT}
+      templateBody={settingsBundle.templateMap.PARADE_MORNING}
       initialReportType={initialReportType}
       initialReportAtValue={initialReportAtValue}
       initialReportTimeLabel={initialReportTimeLabel}

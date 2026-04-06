@@ -26,6 +26,8 @@ type PermissionRequestPreviewProps = {
   defaultTime: string;
   defaultRank?: string;
   defaultName?: string;
+  dutyInstructorActive?: string | null;
+  dutyInstructorReserve?: string | null;
 };
 
 export function PermissionRequestPreview({
@@ -45,6 +47,8 @@ export function PermissionRequestPreview({
   defaultTime,
   defaultRank = "",
   defaultName = "",
+  dutyInstructorActive,
+  dutyInstructorReserve,
 }: PermissionRequestPreviewProps) {
   const [recipient, setRecipient] = useState(initialRecipient ?? defaultRecipient);
   const [rank, setRank] = useState(initialRank ?? defaultRank);
@@ -124,6 +128,16 @@ export function PermissionRequestPreview({
   return (
     <section id={id} className="rounded-[2rem] border border-black/10 bg-white/95 p-5 shadow-sm">
       <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+
+      <div className="mt-4 rounded-[1.5rem] border border-black/10 bg-slate-50 px-4 py-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">Today&apos;s DI</p>
+        <p className="mt-2 text-sm text-slate-900">
+          Active: {dutyInstructorActive?.trim() ? dutyInstructorActive : "Not set"}
+        </p>
+        <p className="mt-1 text-sm text-slate-700">
+          Reserve: {dutyInstructorReserve?.trim() ? dutyInstructorReserve : "Not set"}
+        </p>
+      </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <div className="space-y-2">

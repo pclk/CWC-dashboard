@@ -6,7 +6,16 @@ import { revalidatePath } from "next/cache";
 import { failure, success, type ActionResult } from "@/actions/helpers";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
+import { DEFAULT_TEMPLATE_BODIES } from "@/lib/templates";
 import { messageTemplateSchema, userSettingsSchema } from "@/lib/validators/template";
+
+function resolveSynchronizedTemplateTypes(type: TemplateType) {
+  if (type === TemplateType.PARADE_MORNING || type === TemplateType.PARADE_NIGHT) {
+    return [TemplateType.PARADE_MORNING, TemplateType.PARADE_NIGHT];
+  }
+
+  return [type];
+}
 
 export async function updateUserSettingsAction(
   input: {
@@ -105,10 +114,14 @@ export async function updateMessageTemplateAction(
     return failure(parsed.error.issues[0]?.message ?? "Invalid template payload.");
   }
 
+  const synchronizedTypes = resolveSynchronizedTemplateTypes(parsed.data.type);
+
   await prisma.messageTemplate.updateMany({
     where: {
       userId,
-      type: parsed.data.type,
+      type: {
+        in: synchronizedTypes,
+      },
       isDefault: true,
     },
     data: {
@@ -123,4 +136,38 @@ export async function updateMessageTemplateAction(
   revalidatePath("/announcements");
   revalidatePath("/book-in");
   return success("Template updated.");
+}
+
+export async function resetMessageTemplateAction(
+  input: { type: TemplateType },
+): Promise<ActionResult> {
+  const userId = await requireUser();
+
+  if (!(input.type in DEFAULT_TEMPLATE_BODIES)) {
+    return failure("Invalid template type.");
+  }
+
+  const body = DEFAULT_TEMPLATE_BODIES[input.type];
+  const synchronizedTypes = resolveSynchronizedTemplateTypes(input.type);
+
+  await prisma.messageTemplate.updateMany({
+    where: {
+      userId,
+      type: {
+        in: synchronizedTypes,
+      },
+      isDefault: true,
+    },
+    data: {
+      body,
+    },
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/dashboard");
+  revalidatePath("/parade-state");
+  revalidatePath("/troop-movement");
+  revalidatePath("/announcements");
+  revalidatePath("/book-in");
+  return success("Template reset to default.");
 }

@@ -13,8 +13,43 @@ const WEEKDAY_INDEX_MAP = {
   fri: 5,
   sat: 6,
 } as const;
+const CURRENT_AFFAIR_WEEKDAY_TO_OFFSET = {
+  MON: 0,
+  TUE: 1,
+  WED: 2,
+  THU: 3,
+  FRI: 4,
+} as const;
+const MONTH_NAME_TO_NUMBER = {
+  jan: "01",
+  january: "01",
+  feb: "02",
+  february: "02",
+  mar: "03",
+  march: "03",
+  apr: "04",
+  april: "04",
+  may: "05",
+  jun: "06",
+  june: "06",
+  jul: "07",
+  july: "07",
+  aug: "08",
+  august: "08",
+  sep: "09",
+  sept: "09",
+  september: "09",
+  oct: "10",
+  october: "10",
+  nov: "11",
+  november: "11",
+  dec: "12",
+  december: "12",
+} as const;
 
 export type StrengthPeriod = "morning" | "afternoon" | "evening";
+export const CURRENT_AFFAIR_WEEKDAY_OPTIONS = ["MON", "TUE", "WED", "THU", "FRI"] as const;
+export type CurrentAffairWeekday = (typeof CURRENT_AFFAIR_WEEKDAY_OPTIONS)[number];
 
 function getParts(date: Date) {
   const formatter = new Intl.DateTimeFormat("en-SG", {
@@ -185,6 +220,44 @@ export function parseSingaporeDateInputToUtc(value?: string | null) {
   throw new Error("Invalid date. Use DDMMYY.");
 }
 
+export function parseSingaporeLooseDateInputToUtc(value?: string | null) {
+  if (!value) return null;
+
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  try {
+    return parseSingaporeDateInputToUtc(trimmed);
+  } catch {
+    // Fall through to support short forms like "6 Apr".
+  }
+
+  const shortDateMatch = trimmed.match(/^(\d{1,2})\s+([A-Za-z]{3,9})(?:\s+(\d{2}|\d{4}))?$/);
+
+  if (!shortDateMatch) {
+    throw new Error("Invalid date. Use DDMMYY or D MMM.");
+  }
+
+  const [, dayValue, monthValue, yearValue] = shortDateMatch;
+  const month = MONTH_NAME_TO_NUMBER[monthValue.toLowerCase() as keyof typeof MONTH_NAME_TO_NUMBER];
+
+  if (!month) {
+    throw new Error("Invalid date. Use DDMMYY or D MMM.");
+  }
+
+  const parts = getParts(new Date());
+  const year = yearValue
+    ? yearValue.length === 2
+      ? toFourDigitYear(yearValue)
+      : yearValue
+    : parts.year;
+
+  return buildValidatedSingaporeDate(year, month, dayValue.padStart(2, "0"));
+}
+
 export function getSingaporeDayBounds(date = new Date()) {
   const parts = getParts(date);
   const start = new Date(
@@ -225,14 +298,11 @@ export function formatWeekdayLabel(date: Date) {
     weekday: "short",
   }).format(date);
 
-  switch (weekday.toLowerCase()) {
-    case "thu":
-      return "THURS";
-    case "tue":
-      return "TUES";
-    default:
-      return weekday.toUpperCase();
-  }
+  return weekday.toUpperCase();
+}
+
+export function formatCurrentAffairWeekday(date: Date): CurrentAffairWeekday | "SAT" | "SUN" {
+  return formatWeekdayLabel(date) as CurrentAffairWeekday | "SAT" | "SUN";
 }
 
 export function getSingaporeWeekBounds(date = new Date()) {
@@ -251,4 +321,38 @@ export function getSingaporeWeekBounds(date = new Date()) {
   const end = new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000 + (24 * 60 * 60 * 1000 - 1));
 
   return { start, end };
+}
+
+export function getCurrentAffairWeekBounds(date = new Date()) {
+  const parts = getParts(date);
+  const currentDayStart = new Date(
+    `${parts.year}-${parts.month}-${parts.day}T00:00:00${SINGAPORE_OFFSET_SUFFIX}`,
+  );
+  const weekday = new Intl.DateTimeFormat("en-SG", {
+    timeZone: SINGAPORE_TIME_ZONE,
+    weekday: "short",
+  })
+    .format(date)
+    .toLowerCase() as keyof typeof WEEKDAY_INDEX_MAP;
+  const dayOfWeek = WEEKDAY_INDEX_MAP[weekday] ?? 0;
+  const dayOffset =
+    dayOfWeek === WEEKDAY_INDEX_MAP.sat
+      ? 2
+      : dayOfWeek === WEEKDAY_INDEX_MAP.sun
+        ? 1
+        : 1 - dayOfWeek;
+  const start = new Date(currentDayStart.getTime() + dayOffset * 24 * 60 * 60 * 1000);
+  const end = new Date(start.getTime() + 4 * 24 * 60 * 60 * 1000 + (24 * 60 * 60 * 1000 - 1));
+
+  return { start, end };
+}
+
+export function resolveCurrentAffairWeekdayDate(
+  weekday: CurrentAffairWeekday,
+  anchorDate = new Date(),
+) {
+  const { start } = getCurrentAffairWeekBounds(anchorDate);
+  const dayOffset = CURRENT_AFFAIR_WEEKDAY_TO_OFFSET[weekday];
+
+  return new Date(start.getTime() + dayOffset * 24 * 60 * 60 * 1000);
 }

@@ -1,6 +1,6 @@
 import { DEFAULT_TEMPLATE_BODIES } from "@/lib/templates";
 import { formatCompactDmy, formatCompactDmyHm, formatTimeText } from "@/lib/date";
-import { renderNamedList, renderTemplate } from "@/lib/formatting";
+import { renderLines, renderNamedList, renderTemplate } from "@/lib/formatting";
 
 export type ParadeStateInput = {
   unitName: string;
@@ -86,8 +86,8 @@ function renderAppointmentList(items: ParadeStateInput["upcomingAppointments"]) 
 
 function formatRecordDateSpan(startAt?: Date | null, endAt?: Date | null, unknownEndTime?: boolean) {
   if (unknownEndTime) {
-    const formattedStart = startAt ? formatCompactDmy(startAt) : "??????";
-    return `${formattedStart} - ??????`;
+    const formattedStart = startAt ? formatCompactDmy(startAt) : "TBC";
+    return `${formattedStart} - TBC`;
   }
 
   if (startAt && endAt) {
@@ -106,6 +106,30 @@ function formatRecordDateSpan(startAt?: Date | null, endAt?: Date | null, unknow
   }
 
   return "";
+}
+
+function buildNotInCampBlock(counts: ParadeStateInput["notInCampCounts"]) {
+  return renderLines(
+    [
+      counts.hospitalizationLeave > 0 ? `${counts.hospitalizationLeave}x HL` : "",
+      counts.rso > 0 ? `${counts.rso}x RSO` : "",
+      counts.mc > 0 ? `${counts.mc}x MC` : "",
+    ].filter(Boolean),
+    "",
+  );
+}
+
+function stripLegacyZeroNotInCampLines(text: string) {
+  return text
+    .replace(/^(\s*\d+x HL):\s*$/gm, "$1")
+    .replace(/^\s*0x HL:?\s*$\n?/gm, "")
+    .replace(/^\s*0x RSO\s*$\n?/gm, "")
+    .replace(/^\s*0x MC\s*$\n?/gm, "")
+    .replace(/^\s*Hospitalisation leave:\s*0\s*$\n?/gm, "")
+    .replace(/^\s*RSO:\s*0\s*$\n?/gm, "")
+    .replace(/^\s*MC:\s*0\s*$\n?/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 export function renderDetailedRecordList(
@@ -146,23 +170,26 @@ export function generateParadeStateMessage(
   input: ParadeStateInput,
   template = DEFAULT_TEMPLATE_BODIES.PARADE_MORNING,
 ) {
-  return renderTemplate(template, {
-    prefix: input.prefix,
-    unitName: input.unitName,
-    caaLine: input.caaLine,
-    totalStrength: input.totalStrength,
-    presentStrength: input.presentStrength,
-    hospitalizationLeave: input.notInCampCounts.hospitalizationLeave,
-    rso: input.notInCampCounts.rso,
-    mc: input.notInCampCounts.mc,
-    other: input.notInCampCounts.other,
-    ma_oaBlock: renderAppointmentList(input.maOaAppointments),
-    mcBlock: renderDetailedRecordList(input.groupedRecords.mc),
-    rsoBlock: renderNamedList(input.groupedRecords.rso),
-    rsiBlock: renderNamedList(input.groupedRecords.rsi),
-    clBlock: renderDetailedRecordList(input.groupedRecords.cl),
-    othersBlock: renderDetailedRecordList(input.groupedRecords.others),
-    statusBlock: renderNamedList(input.groupedRecords.status),
-    appointmentsBlock: renderAppointmentList(input.upcomingAppointments),
-  }).trim();
+  return stripLegacyZeroNotInCampLines(
+    renderTemplate(template, {
+      prefix: input.prefix,
+      unitName: input.unitName,
+      caaLine: input.caaLine,
+      totalStrength: input.totalStrength,
+      presentStrength: input.presentStrength,
+      hospitalizationLeave: input.notInCampCounts.hospitalizationLeave,
+      rso: input.notInCampCounts.rso,
+      mc: input.notInCampCounts.mc,
+      other: input.notInCampCounts.other,
+      notInCampBlock: buildNotInCampBlock(input.notInCampCounts),
+      ma_oaBlock: renderAppointmentList(input.maOaAppointments),
+      mcBlock: renderDetailedRecordList(input.groupedRecords.mc),
+      rsoBlock: renderNamedList(input.groupedRecords.rso),
+      rsiBlock: renderNamedList(input.groupedRecords.rsi),
+      clBlock: renderDetailedRecordList(input.groupedRecords.cl),
+      othersBlock: renderDetailedRecordList(input.groupedRecords.others),
+      statusBlock: renderDetailedRecordList(input.groupedRecords.status),
+      appointmentsBlock: renderAppointmentList(input.upcomingAppointments),
+    }),
+  );
 }

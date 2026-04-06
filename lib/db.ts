@@ -1,4 +1,5 @@
 import {
+  type Bunk,
   type Cadet,
   type CadetRecord,
   type MessageTemplate,
@@ -10,6 +11,7 @@ import {
 
 import {
   formatCompactDmyHm,
+  getCurrentAffairWeekBounds,
   getSingaporeDayBounds,
   getSingaporeStrengthPeriod,
   getSingaporeWeekBounds,
@@ -124,6 +126,15 @@ function sortDutyInstructors(entries: DutyInstructorRow[]) {
   );
 }
 
+function sortBunks(bunks: Bunk[]) {
+  return [...bunks].sort(
+    (left, right) =>
+      left.bunkNumber - right.bunkNumber ||
+      left.bunkId.localeCompare(right.bunkId) ||
+      left.createdAt.getTime() - right.createdAt.getTime(),
+  );
+}
+
 function buildTemplateMap(rows: MessageTemplate[]) {
   const map = { ...DEFAULT_TEMPLATE_BODIES } as Record<TemplateType, string>;
 
@@ -137,6 +148,8 @@ function buildTemplateMap(rows: MessageTemplate[]) {
       map[type] = exactDefault.body;
     }
   }
+
+  map.PARADE_NIGHT = map.PARADE_MORNING;
 
   return map;
 }
@@ -184,6 +197,7 @@ async function ensureDefaultWeeklyTodos(userId: string) {
       systemKey: item.systemKey,
       sortOrder: item.sortOrder,
     })),
+    skipDuplicates: true,
   });
 }
 
@@ -247,7 +261,6 @@ const TROOP_MOVEMENT_CATEGORY_ORDER = [
   RecordCategory.CL,
   RecordCategory.MA_OA,
   RecordCategory.OTHER,
-  RecordCategory.STATUS_RESTRICTION,
 ] as const;
 
 const TROOP_MOVEMENT_CATEGORY_SET = new Set<RecordCategory>(TROOP_MOVEMENT_CATEGORY_ORDER);
@@ -267,6 +280,10 @@ function buildTroopMovementRemarkSuggestions(records: OperationalRecordWithCadet
   const groupedCadets = new Map<RecordCategory, Map<string, string>>();
 
   for (const record of records) {
+    if (record.category === RecordCategory.STATUS_RESTRICTION) {
+      continue;
+    }
+
     const categoryCadets = groupedCadets.get(record.category) ?? new Map<string, string>();
     categoryCadets.set(record.cadetId, record.cadet.displayName);
     groupedCadets.set(record.category, categoryCadets);
@@ -465,6 +482,7 @@ export async function ensureUserConfiguration(userId: string) {
         body: template.body,
         isDefault: template.isDefault,
       })),
+      skipDuplicates: true,
     });
   }
 
@@ -703,7 +721,7 @@ export async function getWeeklyTodos(userId: string) {
 
 export async function getCurrentAffairSharingsForWeek(userId: string, date = new Date()) {
   await ensureUserConfiguration(userId);
-  const { start, end } = getSingaporeWeekBounds(date);
+  const { start, end } = getCurrentAffairWeekBounds(date);
   const entries = await prisma.currentAffairSharing.findMany({
     where: {
       userId,
@@ -744,6 +762,32 @@ export async function getDutyInstructors(userId: string) {
   });
 
   return sortDutyInstructors(entries);
+}
+
+export async function getDutyInstructorForDate(userId: string, date = new Date()) {
+  await ensureUserConfiguration(userId);
+  const { start, end } = getSingaporeDayBounds(date);
+
+  return prisma.dutyInstructor.findFirst({
+    where: {
+      userId,
+      dutyDate: {
+        gte: start,
+        lte: end,
+      },
+    },
+  });
+}
+
+export async function getBunks(userId: string) {
+  await ensureUserConfiguration(userId);
+
+  const bunks = await prisma.bunk.findMany({
+    where: { userId },
+    orderBy: [{ bunkNumber: "asc" }, { bunkId: "asc" }, { createdAt: "asc" }],
+  });
+
+  return sortBunks(bunks);
 }
 
 export async function computeStrengthSummary(userId: string, now = new Date()) {

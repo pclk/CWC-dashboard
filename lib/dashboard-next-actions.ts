@@ -10,12 +10,14 @@ import {
   generateCurrentAffairReminderMessage,
 } from "@/lib/generators/current-affairs";
 import {
-  generateLastParadeMessage,
   generateMtrAnnouncementMessage,
   generateRoutineAnnouncementMessage,
   getMorningLabDefaultTime,
 } from "@/lib/generators/announcements";
-import { generateRequestDiMessage } from "@/lib/generators/permission-requests";
+import {
+  generateRequestDiMessage,
+  generateRequestLpMessage,
+} from "@/lib/generators/permission-requests";
 import { generateParadeStateMessage, type ParadeStateInput } from "@/lib/generators/parade-state";
 
 export type DashboardNextAction = {
@@ -45,6 +47,9 @@ type DashboardActionSettings = {
   announcementRequestDiLocation?: string | null;
   announcementRequestDiTime?: string | null;
   announcementRequestDiFirstTime?: boolean;
+  announcementRequestLpRecipient?: string | null;
+  announcementRequestLpLocation?: string | null;
+  announcementRequestLpTime?: string | null;
 };
 
 function resolveTime(value: string | null | undefined, fallback: string) {
@@ -92,11 +97,6 @@ export function buildDashboardNextActions(input: {
     input.settings.announcementMtr1630Time,
     DEFAULT_ANNOUNCEMENT_TIMES.MTR_1630,
   );
-  const lastParadeTime = resolveTime(
-    input.settings.announcementLastParadeTime,
-    DEFAULT_ANNOUNCEMENT_TIMES.LAST_PARADE_1730,
-  );
-  const lastParadeLocation = input.settings.announcementLastParadeLocation?.trim() || "315e";
   const requestDiMessageTime = resolveTime(
     input.settings.announcementRequestDiTime,
     DEFAULT_ANNOUNCEMENT_TIMES.FIRST_PARADE,
@@ -105,7 +105,13 @@ export function buildDashboardNextActions(input: {
   const requestDiRank = input.settings.announcementRequestDiRank?.trim() || "";
   const requestDiName = input.settings.announcementRequestDiName?.trim() || "";
   const requestDiLocation = input.settings.announcementRequestDiLocation?.trim() || "under block 315e";
-  const requestDiActionTime = DEFAULT_ANNOUNCEMENT_TIMES.REQUEST_DI_FP;
+  const requestLpMessageTime = resolveTime(
+    input.settings.announcementRequestLpTime,
+    DEFAULT_ANNOUNCEMENT_TIMES.REQUEST_LP,
+  );
+  const requestLpRecipient = input.settings.announcementRequestLpRecipient?.trim() || "ma'am";
+  const requestLpLocation =
+    input.settings.announcementRequestLpLocation?.trim() || "outside spectrum mess";
   const currentAffairReminderTime = DEFAULT_ANNOUNCEMENT_TIMES.CURRENT_AFFAIR_REMINDER;
   const morningParadeHref = `/parade-state?${new URLSearchParams({
     reportType: "Morning",
@@ -173,7 +179,7 @@ export function buildDashboardNextActions(input: {
     },
     {
       id: "mtr-1030",
-      title: "MTR",
+      title: "MTR (Lunch)",
       time: mtr1030Time,
       copyText: generateMtrAnnouncementMessage(input.templateMap.MTR_1030, {
         time: mtr1030Time,
@@ -184,7 +190,7 @@ export function buildDashboardNextActions(input: {
     },
     {
       id: "mtr-1630",
-      title: "MTR",
+      title: "MTR (Dinner)",
       time: mtr1630Time,
       copyText: generateMtrAnnouncementMessage(input.templateMap.MTR_1630, {
         time: mtr1630Time,
@@ -196,7 +202,7 @@ export function buildDashboardNextActions(input: {
     {
       id: "request-di-fp",
       title: "Request DI for FP",
-      time: requestDiActionTime,
+      time: requestDiMessageTime,
       copyText: generateRequestDiMessage(input.templateMap.REQUEST_DI_FP, {
         recipient: requestDiRecipient,
         rank: requestDiRank,
@@ -210,14 +216,15 @@ export function buildDashboardNextActions(input: {
       hrefLabel: "Go to Announcements",
     },
     {
-      id: "last-parade",
-      title: "Last Parade",
-      time: lastParadeTime,
-      copyText: generateLastParadeMessage(input.templateMap.LAST_PARADE_1730, {
-        time: lastParadeTime,
-        location: lastParadeLocation,
+      id: "request-lp",
+      title: "Request DI for LP",
+      time: requestLpMessageTime,
+      copyText: generateRequestLpMessage(input.templateMap.REQUEST_LP, {
+        recipient: requestLpRecipient,
+        location: requestLpLocation,
+        time: requestLpMessageTime,
       }),
-      href: `/announcements#${ANNOUNCEMENT_SECTION_IDS.LAST_PARADE_1730}`,
+      href: `/announcements#${ANNOUNCEMENT_SECTION_IDS.REQUEST_LP}`,
       hrefLabel: "Go to Announcements",
     },
     {
@@ -226,7 +233,7 @@ export function buildDashboardNextActions(input: {
       time: DEFAULT_ANNOUNCEMENT_TIMES.PARADE_STATE_NIGHT,
       copyText: generateParadeStateMessage(
         input.nightParadeInput,
-        input.templateMap.PARADE_NIGHT,
+        input.templateMap.PARADE_MORNING,
       ),
       href: nightParadeHref,
       hrefLabel: "Go to Parade State",
@@ -235,12 +242,13 @@ export function buildDashboardNextActions(input: {
 
   const actions = allActions
     .filter((action) => input.hasCurrentAffairToday || action.id !== "current-affair-reminder")
-    .map((action) => ({
+    .map((action, index) => ({
       ...action,
+      order: index,
       time: normalizeTimeValue(action.time),
     }))
     .filter((action) => action.time >= normalizeTimeValue(currentTime))
-    .sort((left, right) => left.time.localeCompare(right.time) || left.title.localeCompare(right.title))
+    .sort((left, right) => left.time.localeCompare(right.time) || left.order - right.order)
     .slice(0, 3);
 
   return {

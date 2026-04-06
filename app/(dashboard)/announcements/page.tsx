@@ -6,18 +6,30 @@ import {
   CURRENT_AFFAIR_SECTION_ID,
   DEFAULT_ANNOUNCEMENT_TIMES,
 } from "@/lib/announcement-config";
-import { getSingaporeWeekBounds } from "@/lib/date";
-import { getCurrentAffairSharingsForWeek, getSettingsAndTemplates } from "@/lib/db";
+import { getCurrentAffairWeekBounds } from "@/lib/date";
+import {
+  getCadets,
+  getCurrentAffairSharingsForWeek,
+  getDutyInstructorForDate,
+  getSettingsAndTemplates,
+} from "@/lib/db";
 import { requireUser } from "@/lib/session";
 
 export default async function AnnouncementsPage() {
   const userId = await requireUser();
   const now = new Date();
-  const [{ settings, templateMap }, currentAffairEntries] = await Promise.all([
+  const [{ settings, templateMap }, currentAffairEntries, cadets, dutyInstructor] = await Promise.all([
     getSettingsAndTemplates(userId),
     getCurrentAffairSharingsForWeek(userId, now),
+    getCadets(userId),
+    getDutyInstructorForDate(userId, now),
   ]);
-  const { start: weekStart } = getSingaporeWeekBounds(now);
+  const { start: weekStart, end: weekEnd } = getCurrentAffairWeekBounds(now);
+  const presenterSuggestions = cadets.filter((cadet) => cadet.active).map((cadet) => cadet.displayName);
+  const dutyInstructorActive = dutyInstructor
+    ? [dutyInstructor.rank, dutyInstructor.name].filter(Boolean).join(" ").trim()
+    : null;
+  const dutyInstructorReserve = dutyInstructor?.reserve ?? null;
 
   return (
     <div className="space-y-4">
@@ -32,7 +44,7 @@ export default async function AnnouncementsPage() {
         <AnnouncementPreview
           id={ANNOUNCEMENT_SECTION_IDS.MTR_1030}
           draftType="MTR_1030"
-          title="MTR 1030"
+          title="MTR (Lunch)"
           mode="mtr"
           templateBody={templateMap.MTR_1030}
           defaultTime={DEFAULT_ANNOUNCEMENT_TIMES.MTR_1030}
@@ -42,24 +54,12 @@ export default async function AnnouncementsPage() {
         <AnnouncementPreview
           id={ANNOUNCEMENT_SECTION_IDS.MTR_1630}
           draftType="MTR_1630"
-          title="MTR 1630"
+          title="MTR (Dinner)"
           mode="mtr"
           templateBody={templateMap.MTR_1630}
           defaultTime={DEFAULT_ANNOUNCEMENT_TIMES.MTR_1630}
           initialTime={settings.announcementMtr1630Time}
           initialLocation={settings.announcementMtr1630Location}
-        />
-        <AnnouncementPreview
-          id={ANNOUNCEMENT_SECTION_IDS.LAST_PARADE_1730}
-          draftType="LAST_PARADE_1730"
-          title="Last Parade 1730"
-          mode="last-parade"
-          templateBody={templateMap.LAST_PARADE_1730}
-          defaultTime={DEFAULT_ANNOUNCEMENT_TIMES.LAST_PARADE_1730}
-          requireLocation
-          defaultLocation="315e"
-          initialTime={settings.announcementLastParadeTime}
-          initialLocation={settings.announcementLastParadeLocation}
         />
         <AnnouncementPreview
           id={ANNOUNCEMENT_SECTION_IDS.MORNING_LAB}
@@ -107,11 +107,13 @@ export default async function AnnouncementsPage() {
           initialLocation={settings.announcementRequestDiLocation}
           initialTime={settings.announcementRequestDiTime}
           initialFirstTime={settings.announcementRequestDiFirstTime}
+          dutyInstructorActive={dutyInstructorActive}
+          dutyInstructorReserve={dutyInstructorReserve}
         />
         <PermissionRequestPreview
           id={ANNOUNCEMENT_SECTION_IDS.REQUEST_LP}
           draftType="REQUEST_LP"
-          title="Request LP"
+          title="Request DI for LP"
           templateBody={templateMap.REQUEST_LP}
           cohortName={settings.unitName}
           defaultRecipient="ma'am"
@@ -120,6 +122,8 @@ export default async function AnnouncementsPage() {
           initialRecipient={settings.announcementRequestLpRecipient}
           initialLocation={settings.announcementRequestLpLocation}
           initialTime={settings.announcementRequestLpTime}
+          dutyInstructorActive={dutyInstructorActive}
+          dutyInstructorReserve={dutyInstructorReserve}
         />
       </div>
 
@@ -130,7 +134,8 @@ export default async function AnnouncementsPage() {
         sharingTime={DEFAULT_ANNOUNCEMENT_TIMES.CURRENT_AFFAIR_SHARING}
         entries={currentAffairEntries}
         rangeStart={weekStart}
-        rangeEnd={now}
+        rangeEnd={weekEnd}
+        presenterSuggestions={presenterSuggestions}
       />
     </div>
   );

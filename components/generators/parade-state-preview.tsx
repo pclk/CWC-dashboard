@@ -31,14 +31,11 @@ type PreviewState = {
   generatedText: string;
   totalStrength: number;
   presentStrength: number;
-  maOaAppointmentCount: number;
-  upcomingAppointmentCount: number;
 };
 
 export function ParadeStatePreview({
   initialInput,
-  morningTemplate,
-  nightTemplate,
+  templateBody,
   initialReportType,
   initialReportAtValue,
   initialReportTimeLabel,
@@ -47,8 +44,7 @@ export function ParadeStatePreview({
   history,
 }: {
   initialInput: ParadeStateInput;
-  morningTemplate: string;
-  nightTemplate: string;
+  templateBody: string;
   initialReportType: "Morning" | "Night" | "Custom";
   initialReportAtValue?: string | null;
   initialReportTimeLabel: string;
@@ -68,14 +64,9 @@ export function ParadeStatePreview({
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [openSnapshotId, setOpenSnapshotId] = useState<string | null>(null);
   const [previewState, setPreviewState] = useState<PreviewState>(() => ({
-    generatedText: generateParadeStateMessage(
-      initialInput,
-      initialReportType === "Night" ? nightTemplate : morningTemplate,
-    ),
+    generatedText: generateParadeStateMessage(initialInput, templateBody),
     totalStrength: initialInput.totalStrength,
     presentStrength: initialInput.presentStrength,
-    maOaAppointmentCount: initialInput.maOaAppointments.length,
-    upcomingAppointmentCount: initialInput.upcomingAppointments.length,
   }));
   const lastSavedDraftRef = useRef(
     JSON.stringify({
@@ -156,8 +147,6 @@ export function ParadeStatePreview({
           generatedText: result.generatedText,
           totalStrength: result.totalStrength,
           presentStrength: result.presentStrength,
-          maOaAppointmentCount: result.maOaAppointmentCount,
-          upcomingAppointmentCount: result.upcomingAppointmentCount,
         });
       });
     }, 250);
@@ -190,8 +179,6 @@ export function ParadeStatePreview({
       generatedText: result.generatedText,
       totalStrength: result.totalStrength,
       presentStrength: result.presentStrength,
-      maOaAppointmentCount: result.maOaAppointmentCount,
-      upcomingAppointmentCount: result.upcomingAppointmentCount,
     });
 
     return result.generatedText;
@@ -293,34 +280,10 @@ export function ParadeStatePreview({
             ) : null}
           </section>
 
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <div className="rounded-[2rem] border border-black/10 bg-white/90 p-5 shadow-sm">
-              <p className="text-sm text-slate-500">Present Strength</p>
-              <p className="mt-2 text-3xl font-semibold text-slate-900">
-                {previewState.presentStrength}
-              </p>
-            </div>
-            <div className="rounded-[2rem] border border-black/10 bg-white/90 p-5 shadow-sm">
-              <p className="text-sm text-slate-500">Total Strength</p>
-              <p className="mt-2 text-3xl font-semibold text-slate-900">
-                {previewState.totalStrength}
-              </p>
-            </div>
+          <section className="grid gap-4">
             <div className="rounded-[2rem] border border-black/10 bg-white/90 p-5 shadow-sm">
               <p className="text-sm text-slate-500">Due Confirmations</p>
               <p className="mt-2 text-3xl font-semibold text-slate-900">{dueConfirmationCount}</p>
-            </div>
-            <div className="rounded-[2rem] border border-black/10 bg-white/90 p-5 shadow-sm">
-              <p className="text-sm text-slate-500">MA/OA</p>
-              <p className="mt-2 text-3xl font-semibold text-slate-900">
-                {previewState.maOaAppointmentCount}
-              </p>
-            </div>
-            <div className="rounded-[2rem] border border-black/10 bg-white/90 p-5 shadow-sm">
-              <p className="text-sm text-slate-500">Upcoming Appointments</p>
-              <p className="mt-2 text-3xl font-semibold text-slate-900">
-                {previewState.upcomingAppointmentCount}
-              </p>
             </div>
           </section>
 

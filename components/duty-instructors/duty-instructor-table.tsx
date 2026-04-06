@@ -7,7 +7,7 @@ import {
   deleteDutyInstructorAction,
   upsertDutyInstructorAction,
 } from "@/actions/duty-instructors";
-import { formatCompactDateInputValue } from "@/lib/date";
+import { formatShortDayMonth } from "@/lib/date";
 
 type DutyInstructorRow = {
   id: string;
@@ -16,6 +16,7 @@ type DutyInstructorRow = {
   name: string;
   reserve: string | null;
 };
+type DutyInstructorEntryMode = "text" | "form";
 
 const EMPTY_FORM: DutyInstructorRow = {
   id: "",
@@ -25,6 +26,10 @@ const EMPTY_FORM: DutyInstructorRow = {
   reserve: "",
 };
 
+function formatActiveLabel(entry: Pick<DutyInstructorRow, "rank" | "name">) {
+  return [entry.rank, entry.name].filter(Boolean).join(" ").trim();
+}
+
 export function DutyInstructorTable({
   dutyInstructors,
 }: {
@@ -32,6 +37,7 @@ export function DutyInstructorTable({
 }) {
   const router = useRouter();
   const [editingEntry, setEditingEntry] = useState<DutyInstructorRow | null>(null);
+  const [entryMode, setEntryMode] = useState<DutyInstructorEntryMode>("text");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -47,7 +53,10 @@ export function DutyInstructorTable({
           </div>
           <button
             type="button"
-            onClick={() => setEditingEntry({ ...EMPTY_FORM, dutyDate: new Date() })}
+            onClick={() => {
+              setEntryMode("text");
+              setEditingEntry({ ...EMPTY_FORM, dutyDate: new Date() });
+            }}
             className="rounded-2xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-teal-800"
           >
             New Entry
@@ -78,7 +87,7 @@ export function DutyInstructorTable({
               <h2 className="text-lg font-semibold text-slate-900">
                 {editingEntry.id ? "Edit Duty Instructor" : "Add Duty Instructor"}
               </h2>
-              <p className="text-sm text-slate-600">Reserve is optional freeform text.</p>
+              <p className="text-sm text-slate-600">Use bulk text for fast entry or form mode for one row.</p>
             </div>
             <button
               type="button"
@@ -90,48 +99,79 @@ export function DutyInstructorTable({
           </div>
 
           <input type="hidden" name="id" defaultValue={editingEntry.id} />
+          <input type="hidden" name="mode" value={editingEntry.id ? "form" : entryMode} />
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {!editingEntry.id ? (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setEntryMode("text")}
+                className={`rounded-2xl px-4 py-2 text-sm font-semibold ${
+                  entryMode === "text"
+                    ? "bg-teal-700 text-white"
+                    : "border border-black/10 text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                Text Entry
+              </button>
+              <button
+                type="button"
+                onClick={() => setEntryMode("form")}
+                className={`rounded-2xl px-4 py-2 text-sm font-semibold ${
+                  entryMode === "form"
+                    ? "bg-teal-700 text-white"
+                    : "border border-black/10 text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                Form Entry
+              </button>
+            </div>
+          ) : null}
+
+          {!editingEntry.id && entryMode === "text" ? (
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-700">Date</label>
-              <input
-                name="dutyDate"
-                type="text"
-                inputMode="numeric"
-                autoComplete="off"
-                placeholder="DDMMYY"
-                defaultValue={formatCompactDateInputValue(new Date(editingEntry.dutyDate))}
+              <label className="block text-sm font-medium text-slate-700">Entries</label>
+              <textarea
+                name="entryText"
+                rows={6}
+                placeholder={`6 Apr - A\n7 Apr - B - C\n\n13 Apr - D - E`}
                 className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
               />
+              <p className="text-xs text-slate-500">
+                One entry per line. Empty lines are ignored. Format: `Date - Active - Optional Reserve`.
+              </p>
             </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-700">Rank</label>
-              <input
-                name="rank"
-                defaultValue={editingEntry.rank}
-                className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-              />
+          ) : (
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-700">Date</label>
+                <input
+                  name="dutyDate"
+                  defaultValue={formatShortDayMonth(new Date(editingEntry.dutyDate))}
+                  placeholder="6 Apr"
+                  className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-700">Active</label>
+                <input
+                  name="active"
+                  defaultValue={formatActiveLabel(editingEntry)}
+                  placeholder="3WO Chrysanta"
+                  className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-700">Reserve</label>
+                <input
+                  name="reserve"
+                  defaultValue={editingEntry.reserve ?? ""}
+                  placeholder="Optional"
+                  className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
+                />
+              </div>
             </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-700">Name</label>
-              <input
-                name="name"
-                defaultValue={editingEntry.name}
-                className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-700">Reserve</label>
-              <input
-                name="reserve"
-                defaultValue={editingEntry.reserve ?? ""}
-                className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-              />
-            </div>
-          </div>
+          )}
 
           {error ? <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p> : null}
 
@@ -151,8 +191,7 @@ export function DutyInstructorTable({
             <thead className="bg-slate-50 text-slate-600">
               <tr>
                 <th className="px-4 py-3 font-medium">Date</th>
-                <th className="px-4 py-3 font-medium">Rank</th>
-                <th className="px-4 py-3 font-medium">Name</th>
+                <th className="px-4 py-3 font-medium">Active</th>
                 <th className="px-4 py-3 font-medium">Reserve</th>
                 <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
@@ -161,17 +200,17 @@ export function DutyInstructorTable({
               {dutyInstructors.length ? (
                 dutyInstructors.map((entry) => (
                   <tr key={entry.id}>
-                    <td className="px-4 py-3 text-slate-700">
-                      {formatCompactDateInputValue(new Date(entry.dutyDate))}
-                    </td>
-                    <td className="px-4 py-3 font-medium text-slate-900">{entry.rank}</td>
-                    <td className="px-4 py-3 text-slate-700">{entry.name}</td>
+                    <td className="px-4 py-3 text-slate-700">{formatShortDayMonth(new Date(entry.dutyDate))}</td>
+                    <td className="px-4 py-3 font-medium text-slate-900">{formatActiveLabel(entry)}</td>
                     <td className="px-4 py-3 text-slate-700">{entry.reserve || "-"}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
-                          onClick={() => setEditingEntry(entry)}
+                          onClick={() => {
+                            setEntryMode("form");
+                            setEditingEntry(entry);
+                          }}
                           className="rounded-2xl border border-black/10 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
                         >
                           Edit
@@ -213,7 +252,7 @@ export function DutyInstructorTable({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-500">
+                  <td colSpan={4} className="px-4 py-10 text-center text-sm text-slate-500">
                     No duty instructor entries yet.
                   </td>
                 </tr>

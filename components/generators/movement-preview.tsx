@@ -25,6 +25,12 @@ type MovementHistory = {
   createdAt: Date | string;
 };
 
+function sanitizeRemarkLines(lines: string[]) {
+  const statusSuggestionPattern = /^\d+x\s+status\b/i;
+
+  return lines.filter((line) => !statusSuggestionPattern.test(line.trim()));
+}
+
 export function MovementPreview({
   unitName,
   templateBody,
@@ -50,12 +56,13 @@ export function MovementPreview({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const initialRemarks =
+  const initialRemarks = sanitizeRemarkLines(
     initialRemarksText !== null && initialRemarksText !== undefined
       ? initialRemarksText.split("\n")
       : remarkSuggestions.length
         ? remarkSuggestions
-        : [""];
+        : [""],
+  );
   const [fromLocation, setFromLocation] = useState(initialFromLocation ?? "");
   const [toLocation, setToLocation] = useState(initialToLocation ?? "");
   const [strengthText, setStrengthText] = useState(initialStrengthText ?? suggestedStrengthText);
@@ -77,7 +84,7 @@ export function MovementPreview({
   ];
 
   function normalizedRemarks() {
-    return remarks.map((remark) => remark.trim()).filter(Boolean);
+    return sanitizeRemarkLines(remarks).map((remark) => remark.trim()).filter(Boolean);
   }
 
   useEffect(() => {
@@ -171,37 +178,43 @@ export function MovementPreview({
         <div className="mt-5 space-y-3">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">Remarks</h2>
-            <button
-              type="button"
-              onClick={() => setRemarks((current) => [...current, ""])}
-              className="rounded-2xl border border-black/10 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
-            >
-              Add line
-            </button>
-          </div>
-
-          {remarkSuggestions.length ? (
             <div className="flex flex-wrap gap-2">
-              {remarkSuggestions.map((suggestion) => (
-                <button
-                  key={suggestion}
-                  type="button"
-                  onClick={() =>
-                    setRemarks((current) =>
-                      current.includes(suggestion) ? current : [...current, suggestion],
-                    )
-                  }
-                  className="rounded-full border border-black/10 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
-                >
-                  {suggestion}
-                </button>
-              ))}
+              <button
+                type="button"
+                disabled={!remarkSuggestions.length}
+                onClick={() =>
+                  setRemarks((current) => {
+                    const currentNonEmpty = current.map((remark) => remark.trim()).filter(Boolean);
+                    const merged = [
+                      ...currentNonEmpty,
+                      ...remarkSuggestions.filter(
+                        (suggestion) =>
+                          !currentNonEmpty.some(
+                            (remark) => remark.toLowerCase() === suggestion.trim().toLowerCase(),
+                          ),
+                      ),
+                    ];
+
+                    return merged.length ? merged : [""];
+                  })
+                }
+                className="rounded-2xl border border-black/10 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
+              >
+                Load from Parade State
+              </button>
+              <button
+                type="button"
+                onClick={() => setRemarks((current) => [...current, ""])}
+                className="rounded-2xl border border-black/10 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+              >
+                Add line
+              </button>
             </div>
-          ) : null}
+          </div>
 
           <div className="space-y-3">
             {remarks.map((remark, index) => (
-              <div key={`${index}-${remark}`} className="flex gap-2">
+              <div key={index} className="flex gap-2">
                 <input
                   value={remark}
                   onChange={(event) =>

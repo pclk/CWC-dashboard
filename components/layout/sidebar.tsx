@@ -18,7 +18,7 @@ export function Sidebar({
 
   return (
     <aside className="hidden w-72 shrink-0 md:flex md:flex-col">
-      <div className="sticky top-4 flex h-[calc(100vh-2rem)] flex-col rounded-[2rem] border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
+      <div className="sticky top-4 flex h-[calc(100vh-2rem)] min-h-0 flex-col rounded-[2rem] border border-black/10 bg-white/85 p-5 shadow-sm backdrop-blur">
         <div className="space-y-1 border-b border-black/10 pb-5">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">
             Cadet Wing Commander
@@ -27,7 +27,7 @@ export function Sidebar({
           <p className="text-sm text-slate-600">{displayName || email || "Authenticated user"}</p>
         </div>
 
-        <nav className="mt-5 flex-1 space-y-1">
+        <nav className="mt-5 flex-1 space-y-1 overflow-y-auto pr-1">
           {NAV_ITEMS.map((item) => {
             const active = pathname === item.href;
 

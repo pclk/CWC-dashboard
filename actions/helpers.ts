@@ -32,6 +32,7 @@ export function revalidateOperationalPages() {
   revalidatePath("/cadets");
   revalidatePath("/records");
   revalidatePath("/appointments");
+  revalidatePath("/bunks");
   revalidatePath("/announcements");
   revalidatePath("/parade-state");
   revalidatePath("/troop-movement");

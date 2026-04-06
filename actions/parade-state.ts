@@ -110,14 +110,9 @@ export async function previewParadeStateAction(
     getUserTemplateMap(userId),
   ]);
 
-  const templateBody =
-    parsed.data.reportType === "Night"
-      ? templateMap.PARADE_NIGHT
-      : templateMap.PARADE_MORNING;
-
   return {
     ok: true,
-    generatedText: generateParadeStateMessage(inputData, templateBody),
+    generatedText: generateParadeStateMessage(inputData, templateMap.PARADE_MORNING),
     totalStrength: inputData.totalStrength,
     presentStrength: inputData.presentStrength,
     maOaAppointmentCount: inputData.maOaAppointments.length,

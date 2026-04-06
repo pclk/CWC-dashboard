@@ -1,8 +1,13 @@
 "use client";
 
+import type { TemplateType } from "@prisma/client";
 import { useState, useTransition } from "react";
 
-import { updateMessageTemplateAction, updateUserSettingsAction } from "@/actions/settings";
+import {
+  resetMessageTemplateAction,
+  updateMessageTemplateAction,
+  updateUserSettingsAction,
+} from "@/actions/settings";
 
 type SettingsValues = {
   unitName: string;
@@ -15,9 +20,11 @@ type SettingsValues = {
 
 type TemplateRow = {
   id: string;
-  type: string;
+  type: TemplateType;
+  displayType: string;
   name: string;
   body: string;
+  defaultBody: string;
 };
 
 export function SettingsForm({
@@ -162,27 +169,56 @@ export function SettingsForm({
             <article key={template.id} className="rounded-[1.5rem] border border-black/10 p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">{template.type}</p>
+                  <p className="text-sm font-semibold text-slate-900">{template.displayType}</p>
                   <p className="text-sm text-slate-600">{template.name}</p>
                 </div>
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => {
-                    startTransition(async () => {
-                      const result = await updateMessageTemplateAction({
-                        type: template.type as never,
-                        body: templateBodies[template.type] ?? template.body,
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => {
+                      startTransition(async () => {
+                        const result = await resetMessageTemplateAction({
+                          type: template.type,
+                        });
+
+                        if (result.ok) {
+                          setTemplateBodies((current) => ({
+                            ...current,
+                            [template.type]: template.defaultBody,
+                          }));
+                        }
+
+                        setStatus(
+                          result.ok
+                            ? result.message ?? "Template reset to default."
+                            : result.error ?? "Unable to reset template.",
+                        );
                       });
-                      setStatus(
-                        result.ok ? result.message ?? "Template saved." : result.error ?? "Unable to save.",
-                      );
-                    });
-                  }}
-                  className="rounded-2xl border border-black/10 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
-                >
-                  Save Template
-                </button>
+                    }}
+                    className="rounded-2xl border border-black/10 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
+                  >
+                    Reset to Default
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => {
+                      startTransition(async () => {
+                        const result = await updateMessageTemplateAction({
+                          type: template.type,
+                          body: templateBodies[template.type] ?? template.body,
+                        });
+                        setStatus(
+                          result.ok ? result.message ?? "Template saved." : result.error ?? "Unable to save.",
+                        );
+                      });
+                    }}
+                    className="rounded-2xl border border-black/10 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
+                  >
+                    Save Template
+                  </button>
+                </div>
               </div>
               <textarea
                 rows={12}

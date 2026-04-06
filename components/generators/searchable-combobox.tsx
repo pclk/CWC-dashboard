@@ -36,6 +36,7 @@ export function SearchableCombobox({
   suggestions,
   placeholder,
   emptyMessage = "No matches found.",
+  autoCapitalize = "characters",
 }: {
   label: string;
   value: string;
@@ -43,6 +44,7 @@ export function SearchableCombobox({
   suggestions: string[];
   placeholder?: string;
   emptyMessage?: string;
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
 }) {
   const inputId = useId();
   const listboxId = useId();
@@ -85,7 +87,7 @@ export function SearchableCombobox({
           type="text"
           value={value}
           autoCorrect="off"
-          autoCapitalize="characters"
+          autoCapitalize={autoCapitalize}
           autoComplete="off"
           spellCheck={false}
           placeholder={placeholder}

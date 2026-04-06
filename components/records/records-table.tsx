@@ -179,7 +179,7 @@ export function RecordsTable({
                     </td>
                     <td className="px-4 py-3 text-slate-600">
                       {record.unknownEndTime
-                        ? "??????"
+                        ? "TBC"
                         : record.endAt
                           ? formatCompactDmy(new Date(record.endAt))
                           : "-"}

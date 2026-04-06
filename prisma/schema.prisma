@@ -22,6 +22,7 @@ model User {
   weeklyTodos          WeeklyTodo[]
   currentAffairSharings CurrentAffairSharing[]
   dutyInstructors      DutyInstructor[]
+  bunks                Bunk[]
   paradeStateSnapshots ParadeStateSnapshot[]
   troopMovements       TroopMovement[]
   templates            MessageTemplate[]
@@ -174,6 +175,7 @@ model WeeklyTodo {
 enum CurrentAffairScope {
   LOCAL
   OVERSEAS
+  TBC
 }
 
 model CurrentAffairSharing {
@@ -206,6 +208,21 @@ model DutyInstructor {
 
   @@unique([userId, dutyDate])
   @@index([userId, dutyDate])
+}
+
+model Bunk {
+  id         String   @id @default(cuid())
+  userId     String
+  bunkNumber Int
+  bunkId     String
+  personnel  String[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bunkNumber])
+  @@index([userId, bunkNumber])
 }
 
 model ParadeStateSnapshot {

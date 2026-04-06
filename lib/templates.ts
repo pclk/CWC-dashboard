@@ -14,75 +14,42 @@ export const DEFAULT_SETTINGS_VALUES = {
     "Good afternoon sirs, MTR is at {{time}}. Do join us if you are free! {{locationSuffix}}",
 } as const;
 
+const DEFAULT_PARADE_STATE_TEMPLATE = `{{prefix}}
+
+CAA: {{caaLine}}
+=======================
+Present Strength: {{presentStrength}}/{{totalStrength}}
+
+Not In Camp:
+{{notInCampBlock}}
+
+MA/OA:
+{{ma_oaBlock}}
+
+MC:
+{{mcBlock}}
+
+RSO:
+{{rsoBlock}}
+
+RSI:
+{{rsiBlock}}
+
+CL:
+{{clBlock}}
+
+Others:
+{{othersBlock}}
+
+Status:
+{{statusBlock}}
+
+Upcoming Appointments:
+{{appointmentsBlock}}`;
+
 export const DEFAULT_TEMPLATE_BODIES: Record<TemplateType, string> = {
-  PARADE_MORNING: `{{prefix}}
-
-CAA: {{caaLine}}
-=======================
-Present Strength: {{presentStrength}}/{{totalStrength}}
-
-Not In Camp:
-{{hospitalizationLeave}}x HL:
-{{rso}}x RSO
-{{mc}}x MC
-
-MA/OA:
-{{ma_oaBlock}}
-
-MC:
-{{mcBlock}}
-
-RSO:
-{{rsoBlock}}
-
-RSI:
-{{rsiBlock}}
-
-CL:
-{{clBlock}}
-
-Others:
-{{othersBlock}}
-
-Status:
-{{statusBlock}}
-
-Upcoming Appointments:
-{{appointmentsBlock}}`,
-  PARADE_NIGHT: `{{prefix}}
-
-CAA: {{caaLine}}
-=======================
-Present Strength: {{presentStrength}}/{{totalStrength}}
-
-Not In Camp:
-Hospitalisation leave: {{hospitalizationLeave}}
-RSO: {{rso}}
-MC: {{mc}}
-
-MA/OA:
-{{ma_oaBlock}}
-
-MC:
-{{mcBlock}}
-
-RSO:
-{{rsoBlock}}
-
-RSI:
-{{rsiBlock}}
-
-CL:
-{{clBlock}}
-
-Others:
-{{othersBlock}}
-
-Status:
-{{statusBlock}}
-
-Upcoming Appointments:
-{{appointmentsBlock}}`,
+  PARADE_MORNING: DEFAULT_PARADE_STATE_TEMPLATE,
+  PARADE_NIGHT: DEFAULT_PARADE_STATE_TEMPLATE,
   TROOP_MOVEMENT: `{{unitName}} Troop Movement
 
 FROM: {{fromLocation}}
@@ -170,6 +137,40 @@ Others:
 
 export const LEGACY_DEFAULT_TEMPLATE_BODIES: Partial<Record<TemplateType, readonly string[]>> = {
   PARADE_MORNING: [
+    `{{prefix}}
+
+CAA: {{caaLine}}
+=======================
+Present Strength: {{presentStrength}}/{{totalStrength}}
+
+Not In Camp:
+{{hospitalizationLeave}}x HL:
+{{rso}}x RSO
+{{mc}}x MC
+
+MA/OA:
+{{ma_oaBlock}}
+
+MC:
+{{mcBlock}}
+
+RSO:
+{{rsoBlock}}
+
+RSI:
+{{rsiBlock}}
+
+CL:
+{{clBlock}}
+
+Others:
+{{othersBlock}}
+
+Status:
+{{statusBlock}}
+
+Upcoming Appointments:
+{{appointmentsBlock}}`,
     `{{prefix}}
 
 CAA: {{caaLine}}
@@ -271,6 +272,40 @@ Upcoming Appointments:
 {{appointmentsBlock}}`,
   ],
   PARADE_NIGHT: [
+    `{{prefix}}
+
+CAA: {{caaLine}}
+=======================
+Present Strength: {{presentStrength}}/{{totalStrength}}
+
+Not In Camp:
+{{hospitalizationLeave}}x HL:
+{{rso}}x RSO
+{{mc}}x MC
+
+MA/OA:
+{{ma_oaBlock}}
+
+MC:
+{{mcBlock}}
+
+RSO:
+{{rsoBlock}}
+
+RSI:
+{{rsiBlock}}
+
+CL:
+{{clBlock}}
+
+Others:
+{{othersBlock}}
+
+Status:
+{{statusBlock}}
+
+Upcoming Appointments:
+{{appointmentsBlock}}`,
     `{{prefix}}
 
 CAA: {{caaLine}}

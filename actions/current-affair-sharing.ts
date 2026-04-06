@@ -4,7 +4,7 @@ import { CurrentAffairScope } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
 import { failure, parseNumber, parseOptionalString, success, type ActionResult } from "@/actions/helpers";
-import { parseSingaporeDateInputToUtc } from "@/lib/date";
+import { resolveCurrentAffairWeekdayDate } from "@/lib/date";
 import { assertCurrentAffairSharingOwnership } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
@@ -22,7 +22,7 @@ export async function upsertCurrentAffairSharingAction(formData: FormData): Prom
   const userId = await requireUser();
   const parsed = currentAffairSharingSchema.safeParse({
     id: parseOptionalString(formData.get("id")) || undefined,
-    sharingDate: parseOptionalString(formData.get("sharingDate")),
+    sharingDay: parseOptionalString(formData.get("sharingDay")),
     scope: parseOptionalString(formData.get("scope")),
     presenter: parseOptionalString(formData.get("presenter")),
     title: parseOptionalString(formData.get("title")),
@@ -33,20 +33,8 @@ export async function upsertCurrentAffairSharingAction(formData: FormData): Prom
     return failure(parsed.error.issues[0]?.message ?? "Invalid current affair sharing entry.");
   }
 
-  let sharingDate: Date | null;
-
-  try {
-    sharingDate = parseSingaporeDateInputToUtc(parsed.data.sharingDate);
-  } catch (error) {
-    return failure(error instanceof Error ? error.message : "Invalid date.");
-  }
-
-  if (!sharingDate) {
-    return failure("Date is required.");
-  }
-
   const data = {
-    sharingDate,
+    sharingDate: resolveCurrentAffairWeekdayDate(parsed.data.sharingDay),
     scope: parsed.data.scope as CurrentAffairScope,
     presenter: parsed.data.presenter,
     title: parsed.data.title,

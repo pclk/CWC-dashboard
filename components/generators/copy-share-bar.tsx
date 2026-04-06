@@ -11,19 +11,6 @@ export function CopyShareBar({ text }: { text: string }) {
     window.setTimeout(() => setStatus(null), 1500);
   }
 
-  async function onShare() {
-    if (!navigator.share) {
-      await navigator.clipboard.writeText(text);
-      setStatus("Copied");
-      window.setTimeout(() => setStatus(null), 1500);
-      return;
-    }
-
-    await navigator.share({ text, title: "Cadet Wing Commander Message" });
-    setStatus("Shared");
-    window.setTimeout(() => setStatus(null), 1500);
-  }
-
   return (
     <div className="flex items-center gap-2">
       <button
@@ -32,13 +19,6 @@ export function CopyShareBar({ text }: { text: string }) {
         className="rounded-2xl border border-black/10 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
       >
         Copy
-      </button>
-      <button
-        type="button"
-        onClick={onShare}
-        className="rounded-2xl border border-black/10 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-      >
-        Share
       </button>
       {status ? <span className="text-xs font-medium text-slate-500">{status}</span> : null}
     </div>
