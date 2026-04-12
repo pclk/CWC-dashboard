@@ -15,7 +15,7 @@ import {
 
 function revalidateCurrentAffairViews() {
   revalidatePath("/dashboard");
-  revalidatePath("/announcements");
+  revalidatePath("/current-affairs");
 }
 
 export async function upsertCurrentAffairSharingAction(formData: FormData): Promise<ActionResult> {

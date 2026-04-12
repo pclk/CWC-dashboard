@@ -4,8 +4,7 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DATABASE_URL_UNPOOLED")
+  url = env("DATABASE_URL")
 }
 
 model User {
@@ -56,17 +55,25 @@ model UserSettings {
   announcementRequestDiTime String?
   announcementRequestDiFirstTime Boolean @default(false)
   announcementRequestLpRecipient String?
+  announcementRequestLpRank String?
+  announcementRequestLpName String?
   announcementRequestLpLocation String?
   announcementRequestLpTime String?
+  announcementRequestLpFirstTime Boolean @default(false)
   paradeDraftReportType   String?
   paradeDraftReportAtValue String?
   paradeDraftReportTimeLabel String?
   paradeDraftPrefixOverride String?
+  bunkDraftYesterdayLastBunkNumber Int?
+  bunkDraftHavePtToday      Boolean @default(false)
   movementDraftFromLocation String?
   movementDraftToLocation String?
   movementDraftStrengthText String?
   movementDraftArrivalTimeText String?
   movementDraftRemarksText String?
+  nightStudyDraftMode String       @default("NIGHT_STUDY")
+  nightStudyPrimaryNamesText String?
+  nightStudyEarlyPartyNamesText String?
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 

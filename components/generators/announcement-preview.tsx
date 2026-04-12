@@ -120,6 +120,8 @@ export function AnnouncementPreview({
   const activityListId = `${draftType.toLowerCase()}-activities`;
   const showLocationField = mode === "mtr" || mode === "last-parade";
   const showActivityField = mode === "routine-with-activity";
+  const locationLabel = mode === "mtr" ? "Location Suffix" : "Location";
+  const locationPlaceholder = requireLocation ? "below 315e" : "optional";
 
   return (
     <section id={id} className="rounded-[2rem] border border-black/10 bg-white/95 p-5 shadow-sm">
@@ -141,13 +143,11 @@ export function AnnouncementPreview({
 
         {showLocationField ? (
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">
-              {requireLocation ? "Location" : "Location Suffix"}
-            </label>
+            <label className="block text-sm font-medium text-slate-700">{locationLabel}</label>
             <input
               value={location}
               onChange={(event) => setLocation(event.target.value)}
-              placeholder={requireLocation ? "below 315e" : "optional"}
+              placeholder={locationPlaceholder}
               className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
             />
           </div>

@@ -8,6 +8,17 @@ function normalizeWhitespace(text: string) {
     .trim();
 }
 
+function buildFirstTimeIntro(input: {
+  rank: string;
+  name: string;
+  cohortName: string;
+  firstTime: boolean;
+}) {
+  return input.firstTime
+    ? `I am ${input.rank} ${input.name} from ${input.cohortName}, `
+    : "";
+}
+
 export function generateRequestDiMessage(
   template: string,
   input: {
@@ -20,9 +31,7 @@ export function generateRequestDiMessage(
     firstTime: boolean;
   },
 ) {
-  const intro = input.firstTime
-    ? `I am ${input.rank} ${input.name} from ${input.cohortName}, `
-    : "";
+  const intro = buildFirstTimeIntro(input);
 
   return normalizeWhitespace(
     renderTemplate(template, {
@@ -38,13 +47,18 @@ export function generateRequestLpMessage(
   template: string,
   input: {
     recipient: string;
+    rank: string;
+    name: string;
+    cohortName: string;
     location: string;
     time: string;
+    firstTime: boolean;
   },
 ) {
   return normalizeWhitespace(
     renderTemplate(template, {
       recipient: input.recipient,
+      intro: buildFirstTimeIntro(input),
       location: input.location,
       time: input.time,
     }),

@@ -18,6 +18,14 @@ export function buildLocationSuffix(location?: string) {
   return `At ${location.trim()}.`;
 }
 
+function buildLocationBlock(location?: string) {
+  if (!location?.trim()) {
+    return "";
+  }
+
+  return `Location: ${location.trim()}\n\n`;
+}
+
 function generateAnnouncementMessage(
   template: string,
   values: Record<string, string | number | null | undefined>,
@@ -37,10 +45,11 @@ export function generateMtrAnnouncementMessage(template: string, input: { time: 
   });
 }
 
-export function generateLastParadeMessage(template: string, input: { time: string; location: string }) {
+export function generateLastParadeMessage(template: string, input: { time: string; location?: string }) {
   return generateAnnouncementMessage(template, {
     time: input.time,
-    location: input.location,
+    location: input.location ?? "",
+    locationBlock: buildLocationBlock(input.location),
   });
 }
 

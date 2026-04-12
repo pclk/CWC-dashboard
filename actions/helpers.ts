@@ -34,8 +34,10 @@ export function revalidateOperationalPages() {
   revalidatePath("/appointments");
   revalidatePath("/bunks");
   revalidatePath("/announcements");
+  revalidatePath("/current-affairs");
   revalidatePath("/parade-state");
   revalidatePath("/troop-movement");
+  revalidatePath("/night-study");
   revalidatePath("/book-in");
   revalidatePath("/duty-instructors");
 }

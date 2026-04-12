@@ -19,8 +19,6 @@ export const announcementDraftSchema = z.object({
 export const paradeDraftSchema = z.object({
   reportType: z.enum(["Morning", "Night", "Custom"]),
   reportAtValue: z.string().trim().max(40),
-  reportTimeLabel: z.string().trim().max(120),
-  prefixOverride: z.string().trim().max(500),
 });
 
 export const troopMovementDraftSchema = z.object({
@@ -29,4 +27,9 @@ export const troopMovementDraftSchema = z.object({
   strengthText: z.string().trim().max(120),
   arrivalTimeText: z.string().trim().max(40),
   remarksText: z.string().trim().max(4000),
+});
+
+export const bunkDraftSchema = z.object({
+  yesterdayLastBunkNumber: z.number().int().min(1).max(9999).nullable(),
+  havePtToday: z.boolean(),
 });

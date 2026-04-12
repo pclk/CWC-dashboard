@@ -104,8 +104,6 @@ export async function previewParadeStateAction(
     buildParadeStateInput(userId, {
       reportType: parsed.data.reportType,
       reportAt,
-      reportTimeLabel: parsed.data.reportTimeLabel,
-      prefixOverride: parsed.data.prefixOverride,
     }),
     getUserTemplateMap(userId),
   ]);

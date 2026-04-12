@@ -40,12 +40,10 @@ export default async function DashboardPage() {
       buildParadeStateInput(userId, {
         reportType: "Morning",
         reportAt: morningReportAt,
-        reportTimeLabel: "Morning",
       }),
       buildParadeStateInput(userId, {
         reportType: "Night",
         reportAt: nightReportAt,
-        reportTimeLabel: "Night",
       }),
       getWeeklyTodos(userId),
       getCurrentAffairSharingsForWeek(userId, now),
@@ -76,6 +74,7 @@ export default async function DashboardPage() {
     nightParadeInput,
     cohortName: settingsBundle.settings.unitName,
     hasCurrentAffairToday: currentAffairToday.length > 0,
+    currentAffairWeekEntries: currentAffairWeek,
   });
 
   return (

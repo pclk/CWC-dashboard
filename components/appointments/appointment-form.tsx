@@ -126,7 +126,6 @@ export function AppointmentForm({
           <input
             name="appointmentAt"
             type="text"
-            inputMode="numeric"
             autoComplete="off"
             placeholder="DDMMYY HHMM"
             defaultValue={appointment?.appointmentAt ? formatCompactDateTimeInputValue(new Date(appointment.appointmentAt)) : ""}

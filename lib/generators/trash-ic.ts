@@ -35,9 +35,10 @@ function formatPersonnelBlock(personnel: string[]) {
 
 export function buildTrashIcAssignments(input: {
   bunks: TrashIcBunk[];
-  todayBreakfastBunkNumber: number;
+  yesterdayLastBunkNumber: number;
   targetDate: Date;
   todayDate?: Date;
+  havePtToday?: boolean;
 }) {
   const bunks = sortBunks(input.bunks);
 
@@ -45,23 +46,28 @@ export function buildTrashIcAssignments(input: {
     return [];
   }
 
-  const breakfastIndex = bunks.findIndex(
-    (bunk) => bunk.bunkNumber === input.todayBreakfastBunkNumber,
+  const yesterdayLastIndex = bunks.findIndex(
+    (bunk) => bunk.bunkNumber === input.yesterdayLastBunkNumber,
   );
 
-  if (breakfastIndex === -1) {
+  if (yesterdayLastIndex === -1) {
     return [];
   }
 
   const todayStart = getSingaporeDayBounds(input.todayDate ?? new Date()).start.getTime();
   const targetStart = getSingaporeDayBounds(input.targetDate).start.getTime();
   const dayOffset = Math.round((targetStart - todayStart) / DAY_IN_MS);
+  const ptImpactsTargetDate = Boolean(input.havePtToday) && dayOffset === 0;
+  const targetMeals = ptImpactsTargetDate
+    ? (["Lunch", "Dinner"] satisfies TrashIcMeal[])
+    : TRASH_IC_MEALS;
   const targetBreakfastIndex = modulo(
-    breakfastIndex + dayOffset * TRASH_IC_MEALS.length,
+    yesterdayLastIndex +
+      (Boolean(input.havePtToday) && dayOffset > 0 ? dayOffset * TRASH_IC_MEALS.length : 1 + dayOffset * TRASH_IC_MEALS.length),
     bunks.length,
   );
 
-  return TRASH_IC_MEALS.map((meal, mealOffset) => ({
+  return targetMeals.map((meal, mealOffset) => ({
     meal,
     bunk: bunks[modulo(targetBreakfastIndex + mealOffset, bunks.length)],
   }));

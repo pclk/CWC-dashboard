@@ -44,6 +44,7 @@ export async function updateAnnouncementTemplateAction(
 
   revalidatePath("/dashboard");
   revalidatePath("/announcements");
+  revalidatePath("/current-affairs");
   revalidatePath("/settings");
   return success("Announcement template updated.");
 }

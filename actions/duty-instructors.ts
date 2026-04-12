@@ -5,7 +5,11 @@ import { parseSingaporeLooseDateInputToUtc } from "@/lib/date";
 import { assertDutyInstructorOwnership } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { dutyInstructorDeleteSchema, dutyInstructorSchema } from "@/lib/validators/duty-instructor";
+import {
+  dutyInstructorBulkDeleteSchema,
+  dutyInstructorDeleteSchema,
+  dutyInstructorSchema,
+} from "@/lib/validators/duty-instructor";
 
 type ParsedDutyInstructorEntry =
   | {
@@ -256,4 +260,57 @@ export async function deleteDutyInstructorAction(formData: FormData): Promise<Ac
 
   revalidateOperationalPages();
   return success("Duty instructor deleted.");
+}
+
+export async function bulkDeleteDutyInstructorsAction(input: {
+  ids: string[];
+}): Promise<ActionResult> {
+  const userId = await requireUser();
+  const parsed = dutyInstructorBulkDeleteSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return failure(parsed.error.issues[0]?.message ?? "Invalid duty instructor selection.");
+  }
+
+  const ids = [...new Set(parsed.data.ids)];
+  let deletedCount = 0;
+
+  try {
+    deletedCount = await prisma.$transaction(async (tx) => {
+      const ownedCount = await tx.dutyInstructor.count({
+        where: {
+          userId,
+          id: {
+            in: ids,
+          },
+        },
+      });
+
+      if (ownedCount !== ids.length) {
+        throw new Error("Duty instructor entry not found");
+      }
+
+      const deleted = await tx.dutyInstructor.deleteMany({
+        where: {
+          userId,
+          id: {
+            in: ids,
+          },
+        },
+      });
+
+      return deleted.count;
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "Duty instructor entry not found") {
+      return failure("One or more selected duty instructor entries could not be found.");
+    }
+
+    throw error;
+  }
+
+  revalidateOperationalPages();
+  return success(
+    deletedCount === 1 ? "Duty instructor deleted." : `${deletedCount} duty instructor entries deleted.`,
+  );
 }
