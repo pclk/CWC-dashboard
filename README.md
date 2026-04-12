@@ -12,21 +12,6 @@ Internal operations dashboard for Cadet Wing Commander workflows.
 - Auth.js credentials login
 - Zod validation
 
-## Environment
+## Docs
 
-Create `.env` from `.env.example` and provide:
-
-- `DATABASE_URL`
-- `DATABASE_URL_UNPOOLED`
-- `AUTH_SECRET`
-
-## Local Setup
-
-```bash
-npm install
-npx prisma generate
-npx prisma migrate deploy
-npm run dev
-```
-
-If no users exist, open `/setup` once to create the initial account. After that, sign in at `/login`.
+https://docs.google.com/document/d/1nKr925neUuLCJT60iJp6Cw-ET_HL714aTqWktXvmyx0/edit?tab=t.fmo64j0noyi
