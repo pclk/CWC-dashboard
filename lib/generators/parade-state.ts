@@ -1,5 +1,11 @@
+import { DEFAULT_ANNOUNCEMENT_TIMES } from "@/lib/announcement-config";
 import { DEFAULT_TEMPLATE_BODIES } from "@/lib/templates";
-import { formatCompactDmy, formatCompactDmyHm, formatTimeText } from "@/lib/date";
+import {
+  formatCompactDateTimeInputValue,
+  formatCompactDmy,
+  formatCompactDmyHm,
+  formatTimeText,
+} from "@/lib/date";
 import { renderLines, renderNamedList, renderTemplate } from "@/lib/formatting";
 
 export type ParadeStateInput = {
@@ -38,14 +44,23 @@ export type ParadeStateInput = {
   }>;
 };
 
-export function buildParadeCaaLine(reportAt: Date, reportTimeLabel?: string) {
-  const trimmedLabel = reportTimeLabel?.trim();
+export function buildParadeCaaLine(reportAt: Date) {
+  return formatCompactDmyHm(reportAt);
+}
 
-  if (trimmedLabel && !["morning", "night"].includes(trimmedLabel.toLowerCase())) {
-    return `${formatCompactDmyHm(reportAt)} (${trimmedLabel})`;
+export function getDefaultParadeReportAtValue(
+  reportType: "Morning" | "Night" | "Custom",
+  now = new Date(),
+) {
+  if (reportType === "Morning") {
+    return `${formatCompactDmy(now)} ${DEFAULT_ANNOUNCEMENT_TIMES.PARADE_STATE_MORNING}`;
   }
 
-  return formatCompactDmyHm(reportAt);
+  if (reportType === "Night") {
+    return `${formatCompactDmy(now)} ${DEFAULT_ANNOUNCEMENT_TIMES.PARADE_STATE_NIGHT}`;
+  }
+
+  return formatCompactDateTimeInputValue(now);
 }
 
 function formatAppointmentCadetName(name: string) {

@@ -2,11 +2,14 @@ import {
   type Bunk,
   type Cadet,
   type CadetRecord,
+  type CurrentAffairSharing,
+  type DutyInstructor,
   type MessageTemplate,
   type Prisma,
   RecordCategory,
   ResolutionState,
   TemplateType,
+  type WeeklyTodo,
 } from "@prisma/client";
 
 import {
@@ -14,11 +17,11 @@ import {
   getCurrentAffairWeekBounds,
   getSingaporeDayBounds,
   getSingaporeStrengthPeriod,
-  getSingaporeWeekBounds,
   type StrengthPeriod,
 } from "@/lib/date";
 import { WEEKLY_TODO_SYSTEM_KEYS } from "@/lib/announcement-config";
 import { type BookInInput } from "@/lib/generators/book-in";
+import { resolveNightStudyAssignments, type NightStudyMode } from "@/lib/night-study";
 import { buildParadeCaaLine, type ParadeStateInput } from "@/lib/generators/parade-state";
 import { renderTemplate } from "@/lib/formatting";
 import { prisma } from "@/lib/prisma";
@@ -62,9 +65,9 @@ type AppointmentWithCadet = Prisma.AppointmentGetPayload<{
   };
 }>;
 
-type CurrentAffairSharingRow = Prisma.CurrentAffairSharingGetPayload<{}>;
-type DutyInstructorRow = Prisma.DutyInstructorGetPayload<{}>;
-type WeeklyTodoRow = Prisma.WeeklyTodoGetPayload<{}>;
+type CurrentAffairSharingRow = CurrentAffairSharing;
+type DutyInstructorRow = DutyInstructor;
+type WeeklyTodoRow = WeeklyTodo;
 
 const DEFAULT_WEEKLY_TODOS = [
   { systemKey: WEEKLY_TODO_SYSTEM_KEYS.SBA_IC, title: "SBA IC", sortOrder: 0 },
@@ -304,27 +307,12 @@ function buildTroopMovementRemarkSuggestions(records: OperationalRecordWithCadet
 function inferStrengthPeriod(
   reportAt: Date,
   reportType?: "Morning" | "Night" | "Custom",
-  reportTimeLabel?: string | null,
 ): StrengthPeriod {
   if (reportType === "Morning") {
     return "morning";
   }
 
   if (reportType === "Night") {
-    return "evening";
-  }
-
-  const normalizedLabel = reportTimeLabel?.trim().toLowerCase() ?? "";
-
-  if (normalizedLabel.includes("morning") || normalizedLabel.includes("am")) {
-    return "morning";
-  }
-
-  if (normalizedLabel.includes("afternoon") || normalizedLabel.includes("pm")) {
-    return "afternoon";
-  }
-
-  if (normalizedLabel.includes("night") || normalizedLabel.includes("evening")) {
     return "evening";
   }
 
@@ -347,10 +335,9 @@ function getAppointmentStrengthCadetIds(
   appointments: AppointmentWithCadet[],
   reportAt: Date,
   reportType?: "Morning" | "Night" | "Custom",
-  reportTimeLabel?: string | null,
 ) {
   const { start, end } = getSingaporeDayBounds(reportAt);
-  const strengthPeriod = inferStrengthPeriod(reportAt, reportType, reportTimeLabel);
+  const strengthPeriod = inferStrengthPeriod(reportAt, reportType);
 
   return new Set(
     appointments
@@ -370,7 +357,6 @@ function splitAppointmentsForParade(
   appointments: AppointmentWithCadet[],
   reportAt: Date,
   reportType?: "Morning" | "Night" | "Custom",
-  reportTimeLabel?: string | null,
 ) {
   const { start, end } = getSingaporeDayBounds(reportAt);
   const eligibleAppointments = sortAppointments(
@@ -396,12 +382,7 @@ function splitAppointmentsForParade(
         venue: appointment.venue,
         appointmentAt: appointment.appointmentAt,
       })),
-    affectingCadetIds: getAppointmentStrengthCadetIds(
-      eligibleAppointments,
-      reportAt,
-      reportType,
-      reportTimeLabel,
-    ),
+    affectingCadetIds: getAppointmentStrengthCadetIds(eligibleAppointments, reportAt, reportType),
   };
 }
 
@@ -563,6 +544,34 @@ export async function getCadets(userId: string) {
   });
 
   return cadets;
+}
+
+export async function buildNightStudyContext(userId: string) {
+  const [settings, activeCadets] = await Promise.all([
+    getUserSettings(userId),
+    getActiveCadets(userId),
+  ]);
+  const mode =
+    settings.nightStudyDraftMode === "GO_BACK_BUNK" ? "GO_BACK_BUNK" : "NIGHT_STUDY";
+  const primaryNamesText = settings.nightStudyPrimaryNamesText ?? "";
+  const earlyPartyNamesText = settings.nightStudyEarlyPartyNamesText ?? "";
+  const cadetOptions = activeCadets.map((cadet) => ({
+    rank: cadet.rank,
+    displayName: cadet.displayName,
+  }));
+
+  return {
+    mode: mode as NightStudyMode,
+    primaryNamesText,
+    earlyPartyNamesText,
+    activeCadets: cadetOptions,
+    resolved: resolveNightStudyAssignments({
+      mode,
+      primaryNamesText,
+      earlyPartyNamesText,
+      activeCadets: cadetOptions,
+    }),
+  };
 }
 
 export async function getOperationalRecords(userId: string) {
@@ -829,8 +838,6 @@ export async function buildParadeStateInput(
   options?: {
     reportType?: "Morning" | "Night" | "Custom";
     reportAt?: Date;
-    reportTimeLabel?: string;
-    prefixOverride?: string | null;
   },
 ): Promise<ParadeStateInput> {
   const reportAt = options?.reportAt ?? new Date();
@@ -852,7 +859,6 @@ export async function buildParadeStateInput(
     pendingAppointments,
     reportAt,
     options?.reportType,
-    options?.reportTimeLabel,
   );
   const absentCadetIds = new Set([
     ...operationalAbsentCadetIds,
@@ -860,10 +866,9 @@ export async function buildParadeStateInput(
   ]);
 
   const prefixTemplate =
-    options?.prefixOverride?.trim() ||
-    (options?.reportType === "Night"
+    options?.reportType === "Night"
       ? settings.defaultNightPrefix || DEFAULT_SETTINGS_VALUES.defaultNightPrefix
-      : settings.defaultParadePrefix || DEFAULT_SETTINGS_VALUES.defaultParadePrefix);
+      : settings.defaultParadePrefix || DEFAULT_SETTINGS_VALUES.defaultParadePrefix;
 
   return {
     unitName: settings.unitName,
@@ -871,7 +876,7 @@ export async function buildParadeStateInput(
       unitName: settings.unitName,
       reportAt: formatCompactDmyHm(reportAt),
     }),
-    caaLine: buildParadeCaaLine(reportAt, options?.reportTimeLabel),
+    caaLine: buildParadeCaaLine(reportAt),
     totalStrength: activeCadets.length,
     presentStrength: activeCadets.length - absentCadetIds.size,
     notInCampCounts: computeNotInCampCounts(
@@ -1009,15 +1014,21 @@ export async function getDashboardData(userId: string) {
 }
 
 export async function buildTroopMovementContext(userId: string) {
-  const [settings, summary, operationalRecords] = await Promise.all([
+  const [settings, summary, operationalRecords, activeCadets] = await Promise.all([
     getUserSettings(userId),
     computeStrengthSummary(userId),
     getOperationalRecords(userId),
+    getActiveCadets(userId),
   ]);
 
   return {
     unitName: settings.unitName,
+    totalStrength: summary.totalStrength,
     suggestedStrengthText: `${summary.presentStrength}/${summary.totalStrength}`,
     remarkSuggestions: buildTroopMovementRemarkSuggestions(operationalRecords),
+    activeCadets: activeCadets.map((cadet) => ({
+      rank: cadet.rank,
+      displayName: cadet.displayName,
+    })),
   };
 }

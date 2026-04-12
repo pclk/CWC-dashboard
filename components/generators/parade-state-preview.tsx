@@ -15,7 +15,11 @@ import {
   formatCompactDmyHm,
   parseSingaporeInputToUtc,
 } from "@/lib/date";
-import { generateParadeStateMessage, type ParadeStateInput } from "@/lib/generators/parade-state";
+import {
+  generateParadeStateMessage,
+  getDefaultParadeReportAtValue,
+  type ParadeStateInput,
+} from "@/lib/generators/parade-state";
 import { buildTextPreview } from "@/lib/formatting";
 
 type SnapshotRow = {
@@ -38,8 +42,6 @@ export function ParadeStatePreview({
   templateBody,
   initialReportType,
   initialReportAtValue,
-  initialReportTimeLabel,
-  initialPrefixOverride,
   dueConfirmationCount,
   history,
 }: {
@@ -47,8 +49,6 @@ export function ParadeStatePreview({
   templateBody: string;
   initialReportType: "Morning" | "Night" | "Custom";
   initialReportAtValue?: string | null;
-  initialReportTimeLabel: string;
-  initialPrefixOverride: string;
   dueConfirmationCount: number;
   history: SnapshotRow[];
 }) {
@@ -56,11 +56,12 @@ export function ParadeStatePreview({
   const [view, setView] = useState<"generator" | "history">("generator");
   const [draftPending, startDraftTransition] = useTransition();
   const [previewPending, startPreviewTransition] = useTransition();
-  const resolvedInitialReportAtValue = resolveInitialReportAtValue(initialReportAtValue);
+  const resolvedInitialReportAtValue = resolveInitialReportAtValue(
+    initialReportType,
+    initialReportAtValue,
+  );
   const [reportType, setReportType] = useState<"Morning" | "Night" | "Custom">(initialReportType);
   const [reportAtValue, setReportAtValue] = useState(resolvedInitialReportAtValue);
-  const [reportTimeLabel, setReportTimeLabel] = useState(initialReportTimeLabel);
-  const [prefixOverride, setPrefixOverride] = useState(initialPrefixOverride);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [openSnapshotId, setOpenSnapshotId] = useState<string | null>(null);
   const [previewState, setPreviewState] = useState<PreviewState>(() => ({
@@ -72,25 +73,29 @@ export function ParadeStatePreview({
     JSON.stringify({
       reportType: initialReportType,
       reportAtValue: resolvedInitialReportAtValue,
-      reportTimeLabel: initialReportTimeLabel,
-      prefixOverride: initialPrefixOverride,
     }),
   );
   const lastPreviewRequestRef = useRef(
     JSON.stringify({
       reportType: initialReportType,
       reportAtValue: resolvedInitialReportAtValue,
-      reportTimeLabel: initialReportTimeLabel,
-      prefixOverride: initialPrefixOverride,
     }),
   );
+
+  function handleReportTypeChange(nextReportType: "Morning" | "Night" | "Custom") {
+    const previousDefaultValue = getDefaultParadeReportAtValue(reportType);
+
+    setReportType(nextReportType);
+
+    if (!reportAtValue.trim() || reportAtValue === previousDefaultValue) {
+      setReportAtValue(getDefaultParadeReportAtValue(nextReportType));
+    }
+  }
 
   useEffect(() => {
     const nextDraft = JSON.stringify({
       reportType,
       reportAtValue,
-      reportTimeLabel,
-      prefixOverride,
     });
 
     if (nextDraft === lastSavedDraftRef.current) {
@@ -102,8 +107,6 @@ export function ParadeStatePreview({
         const result = await updateParadeDraftAction({
           reportType,
           reportAtValue,
-          reportTimeLabel,
-          prefixOverride,
         });
 
         if (result.ok) {
@@ -113,14 +116,12 @@ export function ParadeStatePreview({
     }, 500);
 
     return () => window.clearTimeout(timeoutId);
-  }, [prefixOverride, reportAtValue, reportTimeLabel, reportType, startDraftTransition]);
+  }, [reportAtValue, reportType, startDraftTransition]);
 
   useEffect(() => {
     const nextRequest = JSON.stringify({
       reportType,
       reportAtValue,
-      reportTimeLabel,
-      prefixOverride,
     });
 
     if (nextRequest === lastPreviewRequestRef.current) {
@@ -132,8 +133,6 @@ export function ParadeStatePreview({
         const result = await previewParadeStateAction({
           reportType,
           reportAtValue,
-          reportTimeLabel,
-          prefixOverride,
         });
 
         if (!result.ok) {
@@ -152,20 +151,16 @@ export function ParadeStatePreview({
     }, 250);
 
     return () => window.clearTimeout(timeoutId);
-  }, [prefixOverride, reportAtValue, reportTimeLabel, reportType, startPreviewTransition]);
+  }, [reportAtValue, reportType, startPreviewTransition]);
 
   async function regeneratePreview() {
     const nextRequest = JSON.stringify({
       reportType,
       reportAtValue,
-      reportTimeLabel,
-      prefixOverride,
     });
     const result = await previewParadeStateAction({
       reportType,
       reportAtValue,
-      reportTimeLabel,
-      prefixOverride,
     });
 
     if (!result.ok) {
@@ -225,12 +220,14 @@ export function ParadeStatePreview({
         <>
           <section className="rounded-[2rem] border border-black/10 bg-white/95 p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-slate-900">Configuration</h2>
-            <div className="mt-4 grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-slate-700">Report Type</label>
                 <select
                   value={reportType}
-                  onChange={(event) => setReportType(event.target.value as typeof reportType)}
+                  onChange={(event) =>
+                    handleReportTypeChange(event.target.value as typeof reportType)
+                  }
                   className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
                 >
                   <option value="Morning">Morning</option>
@@ -251,25 +248,6 @@ export function ParadeStatePreview({
                   className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
                 />
                 <p className="text-xs text-slate-500">Use DDMMYY HHMM. Example: 300326 0900.</p>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700">Report Time Label</label>
-                <input
-                  value={reportTimeLabel}
-                  onChange={(event) => setReportTimeLabel(event.target.value)}
-                  className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700">Prefix Override</label>
-                <input
-                  value={prefixOverride}
-                  onChange={(event) => setPrefixOverride(event.target.value)}
-                  placeholder="Optional override"
-                  className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-                />
               </div>
             </div>
 
@@ -398,14 +376,17 @@ export function ParadeStatePreview({
   );
 }
 
-function resolveInitialReportAtValue(initialValue?: string | null) {
+function resolveInitialReportAtValue(
+  reportType: "Morning" | "Night" | "Custom",
+  initialValue?: string | null,
+) {
   if (!initialValue?.trim()) {
-    return formatCompactDateTimeInputValue(new Date());
+    return getDefaultParadeReportAtValue(reportType);
   }
 
   try {
     return formatCompactDateTimeInputValue(parseSingaporeInputToUtc(initialValue) ?? new Date());
   } catch {
-    return formatCompactDateTimeInputValue(new Date());
+    return getDefaultParadeReportAtValue(reportType);
   }
 }

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { deleteBunkAction, upsertBunkAction } from "@/actions/bunks";
+import { updateBunkDraftAction } from "@/actions/generator-drafts";
 import { MessageEditor } from "@/components/generators/message-editor";
 import {
   formatCompactDateInputValue,
@@ -32,9 +33,13 @@ function formatPersonnelText(personnel: string[]) {
 export function BunkManager({
   bunks,
   referenceDate,
+  initialYesterdayLastBunkNumber,
+  initialHavePtToday,
 }: {
   bunks: BunkRow[];
   referenceDate: Date | string;
+  initialYesterdayLastBunkNumber?: number | null;
+  initialHavePtToday?: boolean | null;
 }) {
   const router = useRouter();
   const [editingBunk, setEditingBunk] = useState<BunkRow | null>(null);
@@ -42,16 +47,26 @@ export function BunkManager({
   const [error, setError] = useState<string | null>(null);
   const referenceDay = new Date(referenceDate);
   const [targetDateValue, setTargetDateValue] = useState(formatCompactDateInputValue(referenceDay));
-  const [todayBreakfastBunkNumber, setTodayBreakfastBunkNumber] = useState(
-    bunks[0] ? String(bunks[0].bunkNumber) : "",
+  const [yesterdayLastBunkNumber, setYesterdayLastBunkNumber] = useState(
+    initialYesterdayLastBunkNumber ? String(initialYesterdayLastBunkNumber) : "",
   );
-  const resolvedTodayBreakfastBunkNumber =
-    todayBreakfastBunkNumber &&
-    bunks.some((bunk) => String(bunk.bunkNumber) === todayBreakfastBunkNumber)
-      ? todayBreakfastBunkNumber
-      : bunks[0]
-        ? String(bunks[0].bunkNumber)
+  const [havePtToday, setHavePtToday] = useState(Boolean(initialHavePtToday));
+  const lastSavedDraftRef = useRef(
+    JSON.stringify({
+      yesterdayLastBunkNumber: initialYesterdayLastBunkNumber ?? null,
+      havePtToday: Boolean(initialHavePtToday),
+    }),
+  );
+  const resolvedYesterdayLastBunkNumber =
+    yesterdayLastBunkNumber &&
+    bunks.some((bunk) => String(bunk.bunkNumber) === yesterdayLastBunkNumber)
+      ? yesterdayLastBunkNumber
+      : bunks[bunks.length - 1]
+        ? String(bunks[bunks.length - 1].bunkNumber)
         : "";
+  const selectedYesterdayLastBunkNumber = resolvedYesterdayLastBunkNumber
+    ? Number(resolvedYesterdayLastBunkNumber)
+    : Number.NaN;
 
   let parsedTargetDate: Date | null = null;
   let targetDateError: string | null = null;
@@ -63,20 +78,49 @@ export function BunkManager({
       currentError instanceof Error ? currentError.message : "Invalid date. Use DDMMYY.";
   }
 
-  const selectedBreakfastBunkNumber = Number(resolvedTodayBreakfastBunkNumber);
   const assignments =
-    parsedTargetDate && Number.isFinite(selectedBreakfastBunkNumber)
+    parsedTargetDate && Number.isFinite(selectedYesterdayLastBunkNumber)
       ? buildTrashIcAssignments({
           bunks,
-          todayBreakfastBunkNumber: selectedBreakfastBunkNumber,
+          yesterdayLastBunkNumber: selectedYesterdayLastBunkNumber,
           targetDate: parsedTargetDate,
           todayDate: referenceDay,
+          havePtToday,
         })
       : [];
   const generatedText = generateTrashIcMessage({
     targetDate: parsedTargetDate ?? referenceDay,
     assignments,
   });
+
+  useEffect(() => {
+    const persistedYesterdayLastBunkNumber = Number.isFinite(selectedYesterdayLastBunkNumber)
+      ? selectedYesterdayLastBunkNumber
+      : null;
+    const nextDraft = JSON.stringify({
+      yesterdayLastBunkNumber: persistedYesterdayLastBunkNumber,
+      havePtToday,
+    });
+
+    if (nextDraft === lastSavedDraftRef.current) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      startTransition(async () => {
+        const result = await updateBunkDraftAction({
+          yesterdayLastBunkNumber: persistedYesterdayLastBunkNumber,
+          havePtToday,
+        });
+
+        if (result.ok) {
+          lastSavedDraftRef.current = nextDraft;
+        }
+      });
+    }, 500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [havePtToday, selectedYesterdayLastBunkNumber, startTransition]);
 
   return (
     <div className="space-y-4">
@@ -85,8 +129,8 @@ export function BunkManager({
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Bunks & Trash IC</h1>
             <p className="text-sm text-slate-600">
-              Maintain bunk rosters and generate rotating Trash IC assignments from today&apos;s
-              breakfast bunk.
+              Maintain bunk rosters and generate rotating Trash IC assignments from yesterday&apos;s
+              last bunk.
             </p>
           </div>
           <button
@@ -190,18 +234,20 @@ export function BunkManager({
       <section className="rounded-[2rem] border border-black/10 bg-white/95 p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-900">Trash IC Generator</h2>
         <p className="mt-2 text-sm text-slate-600">
-          Set the bunk handling today&apos;s breakfast. Lunch and dinner advance automatically, and
-          future dates continue the rotation by 3 bunks per day.
+          Set the bunk that closed out yesterday. Today&apos;s breakfast starts from the next bunk,
+          and future dates continue the rotation by 3 bunks per day.
         </p>
 
         {bunks.length ? (
           <>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700">Today&apos;s Breakfast Bunk</label>
+                <label className="block text-sm font-medium text-slate-700">
+                  Yesterday&apos;s Last Bunk
+                </label>
                 <select
-                  value={resolvedTodayBreakfastBunkNumber}
-                  onChange={(event) => setTodayBreakfastBunkNumber(event.target.value)}
+                  value={resolvedYesterdayLastBunkNumber}
+                  onChange={(event) => setYesterdayLastBunkNumber(event.target.value)}
                   className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
                 >
                   {bunks.map((bunk) => (
@@ -226,6 +272,23 @@ export function BunkManager({
               </div>
             </div>
 
+            <label className="mt-4 flex items-start gap-3 rounded-2xl border border-black/10 px-4 py-3 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={havePtToday}
+                onChange={(event) => setHavePtToday(event.target.checked)}
+                className="mt-0.5 size-4 rounded border-black/20"
+              />
+              <span>
+                <span className="block font-medium text-slate-900">Have PT Today</span>
+                <span className="mt-1 block text-xs text-slate-500">
+                  Safety stores will throw morning trash, so only 2 bunks are used for lunch and
+                  dinner. If a normal day would be Bunk 1, 2, 3 for breakfast, lunch, dinner, a PT
+                  day uses Bunk 1 and 2 for lunch and dinner.
+                </span>
+              </span>
+            </label>
+
             {targetDateError ? (
               <p className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">
                 {targetDateError}
@@ -233,48 +296,26 @@ export function BunkManager({
             ) : null}
 
             {!targetDateError && parsedTargetDate ? (
-              <>
-                <section className="mt-5 grid gap-4 md:grid-cols-3">
-                  {assignments.map((assignment) => (
-                    <article
-                      key={assignment.meal}
-                      className="rounded-[1.5rem] border border-black/10 bg-slate-50 px-4 py-4"
-                    >
-                      <p className="text-sm font-semibold text-slate-900">{assignment.meal}</p>
-                      <p className="mt-2 text-2xl font-semibold text-slate-900">
-                        Bunk {assignment.bunk.bunkNumber}
-                      </p>
-                      <p className="text-sm text-slate-600">{assignment.bunk.bunkId}</p>
-                      <p className="mt-3 text-sm text-slate-700">
-                        {assignment.bunk.personnel.length} personnel
-                      </p>
-                      <p className="mt-2 text-sm text-slate-500">
-                        {assignment.bunk.personnel.join(", ")}
-                      </p>
-                    </article>
-                  ))}
-                </section>
-
-                <div className="mt-5">
-                  <MessageEditor
-                    initialGeneratedText={generatedText}
-                    getRegeneratedText={() =>
-                      generateTrashIcMessage({
-                        targetDate: parsedTargetDate,
-                        assignments: Number.isFinite(selectedBreakfastBunkNumber)
-                          ? buildTrashIcAssignments({
-                              bunks,
-                              todayBreakfastBunkNumber: selectedBreakfastBunkNumber,
-                              targetDate: parsedTargetDate,
-                              todayDate: referenceDay,
-                            })
-                          : [],
-                      })
-                    }
-                    title="Trash IC Message"
-                  />
-                </div>
-              </>
+              <div className="mt-5">
+                <MessageEditor
+                  initialGeneratedText={generatedText}
+                  getRegeneratedText={() =>
+                    generateTrashIcMessage({
+                      targetDate: parsedTargetDate,
+                      assignments: Number.isFinite(selectedYesterdayLastBunkNumber)
+                        ? buildTrashIcAssignments({
+                            bunks,
+                            yesterdayLastBunkNumber: selectedYesterdayLastBunkNumber,
+                            targetDate: parsedTargetDate,
+                            todayDate: referenceDay,
+                            havePtToday,
+                          })
+                        : [],
+                    })
+                  }
+                  title="Trash IC Message"
+                />
+              </div>
             ) : null}
           </>
         ) : (

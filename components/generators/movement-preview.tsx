@@ -8,11 +8,26 @@ import { deleteTroopMovementAction, saveTroopMovementAction } from "@/actions/tr
 import { MessageEditor } from "@/components/generators/message-editor";
 import { SearchableCombobox } from "@/components/generators/searchable-combobox";
 import { formatCompactDmyHm } from "@/lib/date";
+import { buildTextPreview } from "@/lib/formatting";
 import {
   DEFAULT_TROOP_MOVEMENT_LOCATION_SUGGESTIONS,
   generateTroopMovementMessage,
 } from "@/lib/generators/troop-movement";
-import { buildTextPreview } from "@/lib/formatting";
+import {
+  TROOP_MOVEMENT_STRENGTH_MODES,
+  autoCorrectTroopMovementRemarkRow,
+  buildTroopMovementStrengthText,
+  createEmptyTroopMovementRemarkRow,
+  formatTroopMovementRemarkRows,
+  parseTroopMovementDraftText,
+  parseTroopMovementRemarkLines,
+  resolveTroopMovementRemarkRowCount,
+  serializeTroopMovementDraft,
+  type TroopMovementCadetOption,
+  type TroopMovementDraftState,
+  type TroopMovementRemarkRow,
+  type TroopMovementStrengthMode,
+} from "@/lib/troop-movement-remarks";
 
 type MovementHistory = {
   id: string;
@@ -25,56 +40,62 @@ type MovementHistory = {
   createdAt: Date | string;
 };
 
-function sanitizeRemarkLines(lines: string[]) {
-  const statusSuggestionPattern = /^\d+x\s+status\b/i;
-
-  return lines.filter((line) => !statusSuggestionPattern.test(line.trim()));
-}
-
 export function MovementPreview({
   unitName,
   templateBody,
   suggestedStrengthText,
+  totalStrength,
   remarkSuggestions,
+  activeCadets,
   initialFromLocation,
   initialToLocation,
   initialStrengthText,
   initialArrivalTimeText,
   initialRemarksText,
+  nightStudyRemarkSuggestions,
+  nightStudyErrors,
   history,
 }: {
   unitName: string;
   templateBody: string;
   suggestedStrengthText: string;
+  totalStrength: number;
   remarkSuggestions: string[];
+  activeCadets: TroopMovementCadetOption[];
   initialFromLocation?: string | null;
   initialToLocation?: string | null;
   initialStrengthText?: string | null;
   initialArrivalTimeText?: string | null;
   initialRemarksText?: string | null;
+  nightStudyRemarkSuggestions: string[];
+  nightStudyErrors: string[];
   history: MovementHistory[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const initialRemarks = sanitizeRemarkLines(
-    initialRemarksText !== null && initialRemarksText !== undefined
-      ? initialRemarksText.split("\n")
-      : remarkSuggestions.length
-        ? remarkSuggestions
-        : [""],
-  );
+  const initialRemarkDraft = resolveInitialRemarkDraft(initialRemarksText, remarkSuggestions);
   const [fromLocation, setFromLocation] = useState(initialFromLocation ?? "");
   const [toLocation, setToLocation] = useState(initialToLocation ?? "");
   const [strengthText, setStrengthText] = useState(initialStrengthText ?? suggestedStrengthText);
+  const [strengthMode, setStrengthMode] = useState<TroopMovementStrengthMode>(
+    initialRemarkDraft.strengthMode,
+  );
   const [arrivalTimeText, setArrivalTimeText] = useState(initialArrivalTimeText ?? "");
-  const [remarks, setRemarks] = useState(initialRemarks.length ? initialRemarks : [""]);
+  const [remarkRows, setRemarkRows] = useState<TroopMovementRemarkRow[]>(
+    initialRemarkDraft.rows.length ? initialRemarkDraft.rows : [createEmptyTroopMovementRemarkRow()],
+  );
   const lastSavedDraftRef = useRef(
     JSON.stringify({
       fromLocation: initialFromLocation ?? "",
       toLocation: initialToLocation ?? "",
       strengthText: initialStrengthText ?? suggestedStrengthText,
       arrivalTimeText: initialArrivalTimeText ?? "",
-      remarksText: (initialRemarks.length ? initialRemarks : [""]).join("\n"),
+      remarksText: serializeTroopMovementDraft({
+        strengthMode: initialRemarkDraft.strengthMode,
+        rows: initialRemarkDraft.rows.length
+          ? initialRemarkDraft.rows
+          : [createEmptyTroopMovementRemarkRow()],
+      }),
     }),
   );
 
@@ -82,13 +103,71 @@ export function MovementPreview({
     ...DEFAULT_TROOP_MOVEMENT_LOCATION_SUGGESTIONS,
     ...history.flatMap((item) => [item.fromLocation, item.toLocation]),
   ];
+  const resolvedRemarkRows = remarkRows.map((row) =>
+    autoCorrectTroopMovementRemarkRow(row, activeCadets),
+  );
+  const effectiveStrengthText = buildTroopMovementStrengthText({
+    manualStrengthText: strengthText,
+    totalStrength,
+    strengthMode,
+    rows: resolvedRemarkRows,
+  });
 
   function normalizedRemarks() {
-    return sanitizeRemarkLines(remarks).map((remark) => remark.trim()).filter(Boolean);
+    return formatTroopMovementRemarkRows(resolvedRemarkRows);
+  }
+
+  function mergeRemarkSuggestions(nextSuggestions: string[]) {
+    setRemarkRows((current) => {
+      const currentRows = current.filter((row) => hasRemarkRowContent(row));
+      const currentKeys = new Set(
+        formatTroopMovementRemarkRows(
+          currentRows.map((row) => autoCorrectTroopMovementRemarkRow(row, activeCadets)),
+        ).map((line) => line.toLowerCase()),
+      );
+      const nextRows = parseTroopMovementRemarkLines(nextSuggestions).filter((row) => {
+        const [line] = formatTroopMovementRemarkRows([
+          autoCorrectTroopMovementRemarkRow(row, activeCadets),
+        ]);
+
+        if (!line || currentKeys.has(line.toLowerCase())) {
+          return false;
+        }
+
+        currentKeys.add(line.toLowerCase());
+        return true;
+      });
+      const mergedRows = [...currentRows, ...nextRows];
+
+      return mergedRows.length ? mergedRows : [createEmptyTroopMovementRemarkRow()];
+    });
+  }
+
+  function updateRemarkRow(
+    rowIndex: number,
+    field: keyof TroopMovementRemarkRow,
+    value: string,
+  ) {
+    setRemarkRows((current) =>
+      current.map((row, currentIndex) =>
+        currentIndex === rowIndex ? { ...row, [field]: value } : row,
+      ),
+    );
+  }
+
+  function autoCorrectRemarkRow(rowIndex: number) {
+    setRemarkRows((current) =>
+      current.map((row, currentIndex) =>
+        currentIndex === rowIndex ? autoCorrectTroopMovementRemarkRow(row, activeCadets) : row,
+      ),
+    );
   }
 
   useEffect(() => {
-    const remarksText = remarks.join("\n");
+    const remarksText = serializeTroopMovementDraft({
+      strengthMode,
+      rows: remarkRows,
+    });
     const nextDraft = JSON.stringify({
       fromLocation,
       toLocation,
@@ -118,14 +197,22 @@ export function MovementPreview({
     }, 500);
 
     return () => window.clearTimeout(timeoutId);
-  }, [arrivalTimeText, fromLocation, remarks, startTransition, strengthText, toLocation]);
+  }, [
+    arrivalTimeText,
+    fromLocation,
+    remarkRows,
+    startTransition,
+    strengthMode,
+    strengthText,
+    toLocation,
+  ]);
 
   const initialGeneratedText = generateTroopMovementMessage(
     {
       unitName,
       fromLocation,
       toLocation,
-      strengthText,
+      strengthText: effectiveStrengthText,
       arrivalTimeText,
       remarks: normalizedRemarks(),
     },
@@ -137,8 +224,9 @@ export function MovementPreview({
       <section className="rounded-[2rem] border border-black/10 bg-white/90 p-5 shadow-sm">
         <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Troop Movement</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Keep the form situational. Suggestions are derived from current records, but the remarks
-          remain fully editable.
+          Keep the form situational. Suggestions are derived from current records, and the remarks
+          now use a structured table. Name lists auto-correct to the closest active cadet when you
+          leave the field.
         </p>
 
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
@@ -159,10 +247,34 @@ export function MovementPreview({
           <div className="space-y-2">
             <label className="block text-sm font-medium text-slate-700">Strength Text</label>
             <input
-              value={strengthText}
+              value={effectiveStrengthText}
               onChange={(event) => setStrengthText(event.target.value)}
-              className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
+              readOnly={strengthMode !== "MANUAL"}
+              className={`w-full rounded-2xl border border-black/10 px-4 py-3 outline-none focus:border-teal-700 ${
+                strengthMode === "MANUAL" ? "bg-white" : "bg-slate-50 text-slate-700"
+              }`}
             />
+            <label className="block pt-1 text-sm font-medium text-slate-700">
+              Strength Calculation
+            </label>
+            <select
+              value={strengthMode}
+              onChange={(event) => setStrengthMode(event.target.value as TroopMovementStrengthMode)}
+              className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
+            >
+              {TROOP_MOVEMENT_STRENGTH_MODES.map((mode) => (
+                <option key={mode} value={mode}>
+                  {formatStrengthModeLabel(mode)}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-500">
+              {strengthMode === "MANUAL"
+                ? "Enter the strength manually."
+                : strengthMode === "SUBTRACT"
+                  ? `Subtract the summed remark counts from ${totalStrength}.`
+                  : `Set the strength to the summed remark counts out of ${totalStrength}.`}
+            </p>
           </div>
           <div className="space-y-2">
             <label className="block text-sm font-medium text-slate-700">Arrival Time Text</label>
@@ -177,68 +289,103 @@ export function MovementPreview({
 
         <div className="mt-5 space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">Remarks</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">
+              Remarks
+            </h2>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 disabled={!remarkSuggestions.length}
-                onClick={() =>
-                  setRemarks((current) => {
-                    const currentNonEmpty = current.map((remark) => remark.trim()).filter(Boolean);
-                    const merged = [
-                      ...currentNonEmpty,
-                      ...remarkSuggestions.filter(
-                        (suggestion) =>
-                          !currentNonEmpty.some(
-                            (remark) => remark.toLowerCase() === suggestion.trim().toLowerCase(),
-                          ),
-                      ),
-                    ];
-
-                    return merged.length ? merged : [""];
-                  })
-                }
+                onClick={() => mergeRemarkSuggestions(remarkSuggestions)}
                 className="rounded-2xl border border-black/10 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
               >
                 Load from Parade State
               </button>
               <button
                 type="button"
-                onClick={() => setRemarks((current) => [...current, ""])}
+                disabled={!nightStudyRemarkSuggestions.length || nightStudyErrors.length > 0}
+                onClick={() => mergeRemarkSuggestions(nightStudyRemarkSuggestions)}
+                className="rounded-2xl border border-black/10 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
+              >
+                Load Night Study
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setRemarkRows((current) => [...current, createEmptyTroopMovementRemarkRow()])
+                }
                 className="rounded-2xl border border-black/10 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
               >
-                Add line
+                Add row
               </button>
             </div>
           </div>
 
-          <div className="space-y-3">
-            {remarks.map((remark, index) => (
-              <div key={index} className="flex gap-2">
-                <input
-                  value={remark}
-                  onChange={(event) =>
-                    setRemarks((current) =>
-                      current.map((value, valueIndex) =>
-                        valueIndex === index ? event.target.value : value,
-                      ),
-                    )
-                  }
-                  className="flex-1 rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    setRemarks((current) =>
-                      current.length === 1 ? [""] : current.filter((_, valueIndex) => valueIndex !== index),
-                    )
-                  }
-                  className="rounded-2xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-50"
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
+          {nightStudyErrors.length ? (
+            <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Fix Night Study setup before loading: {nightStudyErrors.join(" ")}
+            </p>
+          ) : null}
+
+          <div className="overflow-x-auto rounded-[1.5rem] border border-black/10">
+            <table className="min-w-full border-collapse text-sm">
+              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                <tr>
+                  <th className="px-4 py-3">Number</th>
+                  <th className="px-4 py-3">Group</th>
+                  <th className="px-4 py-3">Name List</th>
+                  <th className="px-4 py-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {remarkRows.map((row, index) => (
+                  <tr key={index} className="border-t border-black/10 align-top">
+                    <td className="px-4 py-3">
+                      <input
+                        value={resolveTroopMovementRemarkRowCount(resolvedRemarkRows[index] ?? row)}
+                        readOnly
+                        className="w-20 rounded-2xl border border-black/10 bg-slate-50 px-3 py-2 text-center text-slate-700 outline-none"
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        value={row.group}
+                        onChange={(event) => updateRemarkRow(index, "group", event.target.value)}
+                        placeholder="MC"
+                        className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <textarea
+                        value={row.namesText}
+                        onChange={(event) =>
+                          updateRemarkRow(index, "namesText", event.target.value)
+                        }
+                        onBlur={() => autoCorrectRemarkRow(index)}
+                        rows={2}
+                        placeholder="Name, Name, Name"
+                        className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
+                      />
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setRemarkRows((current) =>
+                            current.length === 1
+                              ? [createEmptyTroopMovementRemarkRow()]
+                              : current.filter((_, currentIndex) => currentIndex !== index),
+                          )
+                        }
+                        className="rounded-2xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-50"
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
@@ -251,7 +398,7 @@ export function MovementPreview({
               unitName,
               fromLocation,
               toLocation,
-              strengthText,
+              strengthText: effectiveStrengthText,
               arrivalTimeText,
               remarks: normalizedRemarks(),
             },
@@ -262,7 +409,7 @@ export function MovementPreview({
           saveTroopMovementAction({
             fromLocation,
             toLocation,
-            strengthText,
+            strengthText: effectiveStrengthText,
             arrivalTimeText,
             remarks: normalizedRemarks(),
             finalMessage: text,
@@ -288,7 +435,9 @@ export function MovementPreview({
                       {item.strengthText} • {item.arrivalTimeText} •{" "}
                       {formatCompactDmyHm(new Date(item.createdAt))}
                     </p>
-                    <p className="mt-2 text-sm text-slate-500">{buildTextPreview(item.finalMessage)}</p>
+                    <p className="mt-2 text-sm text-slate-500">
+                      {buildTextPreview(item.finalMessage)}
+                    </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -333,4 +482,34 @@ export function MovementPreview({
       </section>
     </div>
   );
+}
+
+function formatStrengthModeLabel(mode: TroopMovementStrengthMode) {
+  if (mode === "SUBTRACT") {
+    return "Subtract remarks from total";
+  }
+
+  if (mode === "SET") {
+    return "Set remarks as strength";
+  }
+
+  return "Manual";
+}
+
+function hasRemarkRowContent(row: TroopMovementRemarkRow) {
+  return Boolean(row.countText.trim() || row.group.trim() || row.namesText.trim());
+}
+
+function resolveInitialRemarkDraft(
+  initialRemarksText: string | null | undefined,
+  remarkSuggestions: string[],
+): TroopMovementDraftState {
+  if (initialRemarksText?.trim()) {
+    return parseTroopMovementDraftText(initialRemarksText);
+  }
+
+  return {
+    strengthMode: "MANUAL",
+    rows: parseTroopMovementRemarkLines(remarkSuggestions),
+  };
 }

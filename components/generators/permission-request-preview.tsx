@@ -50,6 +50,7 @@ export function PermissionRequestPreview({
   dutyInstructorActive,
   dutyInstructorReserve,
 }: PermissionRequestPreviewProps) {
+  const supportsFirstTime = draftType === "REQUEST_DI_FP" || draftType === "REQUEST_LP";
   const [recipient, setRecipient] = useState(initialRecipient ?? defaultRecipient);
   const [rank, setRank] = useState(initialRank ?? defaultRank);
   const [name, setName] = useState(initialName ?? defaultName);
@@ -118,8 +119,12 @@ export function PermissionRequestPreview({
 
     return generateRequestLpMessage(templateBody, {
       recipient,
+      rank,
+      name,
+      cohortName,
       location,
       time,
+      firstTime,
     });
   }
 
@@ -158,7 +163,7 @@ export function PermissionRequestPreview({
           />
         </div>
 
-        {draftType === "REQUEST_DI_FP" ? (
+        {supportsFirstTime ? (
           <>
             <div className="space-y-2">
               <label className="block text-sm font-medium text-slate-700">Rank</label>
@@ -187,10 +192,10 @@ export function PermissionRequestPreview({
             onChange={(event) => setTime(event.target.value)}
             className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
           />
+          </div>
         </div>
-      </div>
 
-      {draftType === "REQUEST_DI_FP" ? (
+      {supportsFirstTime ? (
         <label className="mt-4 flex items-center gap-3 rounded-2xl border border-black/10 px-4 py-3 text-sm text-slate-700">
           <input
             type="checkbox"

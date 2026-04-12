@@ -4,6 +4,7 @@ import type { TemplateType } from "@prisma/client";
 import { useState, useTransition } from "react";
 
 import {
+  changePasswordWithAdminAction,
   resetMessageTemplateAction,
   updateMessageTemplateAction,
   updateUserSettingsAction,
@@ -47,6 +48,11 @@ export function SettingsForm({
     Object.fromEntries(templates.map((template) => [template.type, template.body])),
   );
   const [status, setStatus] = useState<string | null>(null);
+  const [passwordValues, setPasswordValues] = useState({
+    adminPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
 
   return (
     <div className="space-y-4">
@@ -159,6 +165,98 @@ export function SettingsForm({
           className="mt-5 rounded-2xl bg-teal-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
         >
           Save Settings
+        </button>
+      </section>
+
+      <section className="rounded-[2rem] border border-black/10 bg-white/95 p-5 shadow-sm">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">Password</h2>
+          <p className="text-sm text-slate-600">
+            Updating a password requires the admin password.
+          </p>
+        </div>
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-3">
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700" htmlFor="adminPassword">
+              Admin Password
+            </label>
+            <input
+              id="adminPassword"
+              type="password"
+              value={passwordValues.adminPassword}
+              onChange={(event) =>
+                setPasswordValues((current) => ({
+                  ...current,
+                  adminPassword: event.target.value,
+                }))
+              }
+              className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700" htmlFor="newPassword">
+              New Password
+            </label>
+            <input
+              id="newPassword"
+              type="password"
+              autoComplete="new-password"
+              value={passwordValues.newPassword}
+              onChange={(event) =>
+                setPasswordValues((current) => ({
+                  ...current,
+                  newPassword: event.target.value,
+                }))
+              }
+              className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700" htmlFor="confirmNewPassword">
+              Confirm New Password
+            </label>
+            <input
+              id="confirmNewPassword"
+              type="password"
+              autoComplete="new-password"
+              value={passwordValues.confirmPassword}
+              onChange={(event) =>
+                setPasswordValues((current) => ({
+                  ...current,
+                  confirmPassword: event.target.value,
+                }))
+              }
+              className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
+            />
+          </div>
+        </div>
+
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => {
+            startTransition(async () => {
+              const result = await changePasswordWithAdminAction(passwordValues);
+
+              if (result.ok) {
+                setPasswordValues({
+                  adminPassword: "",
+                  newPassword: "",
+                  confirmPassword: "",
+                });
+              }
+
+              setStatus(
+                result.ok ? result.message ?? "Password updated." : result.error ?? "Unable to update password.",
+              );
+            });
+          }}
+          className="mt-5 rounded-2xl bg-teal-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
+        >
+          Update Password
         </button>
       </section>
 

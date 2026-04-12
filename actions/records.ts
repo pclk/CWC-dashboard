@@ -35,10 +35,14 @@ export async function upsertRecordAction(formData: FormData): Promise<ActionResu
 
   let startAt: Date | null;
   let endAt: Date | null;
+  const ignoresTiming = parsed.data.category === "RSI";
 
   try {
-    startAt = parseSingaporeDateInputToUtc(parsed.data.startAt);
-    endAt = parsed.data.unknownEndTime ? null : parseSingaporeDateInputToUtc(parsed.data.endAt);
+    startAt = ignoresTiming ? null : parseSingaporeDateInputToUtc(parsed.data.startAt);
+    endAt =
+      ignoresTiming || parsed.data.unknownEndTime
+        ? null
+        : parseSingaporeDateInputToUtc(parsed.data.endAt);
   } catch (error) {
     return failure(error instanceof Error ? error.message : "Invalid record date.");
   }
@@ -66,7 +70,7 @@ export async function upsertRecordAction(formData: FormData): Promise<ActionResu
         details: parsed.data.details || null,
         startAt,
         endAt,
-        unknownEndTime: parsed.data.unknownEndTime,
+        unknownEndTime: ignoresTiming ? false : parsed.data.unknownEndTime,
         affectsStrength: parsed.data.affectsStrength,
         countsNotInCamp: parsed.data.countsNotInCamp,
         sortOrder: parsed.data.sortOrder,
@@ -84,7 +88,7 @@ export async function upsertRecordAction(formData: FormData): Promise<ActionResu
         details: parsed.data.details || null,
         startAt,
         endAt,
-        unknownEndTime: parsed.data.unknownEndTime,
+        unknownEndTime: ignoresTiming ? false : parsed.data.unknownEndTime,
         affectsStrength: parsed.data.affectsStrength,
         countsNotInCamp: parsed.data.countsNotInCamp,
         sortOrder: parsed.data.sortOrder,

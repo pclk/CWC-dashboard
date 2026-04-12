@@ -6,8 +6,19 @@ export const DEFAULT_SETTINGS_VALUES = {
     "Good morning sirs and ma'am, this is the parade state for {{unitName}}.",
   defaultNightPrefix:
     "Good evening sirs and ma'am, this is the parade state for {{unitName}}.",
-  defaultLastParadeText:
-    "Good afternoon sirs, can we have last parade at {{time}}H below {{location}}?",
+  defaultLastParadeText: `Next timing: {{time}}
+
+{{locationBlock}}Things to bring:
+- Water Bottle
+- Thermometer
+
+Activity: LP
+
+Attire: WW
+
+Remarks:
+- fill up your bottles to full volume
+- ensure ur bunk is in SBA condition`,
   defaultMtrMorningText:
     "Good morning sirs, MTR is at {{time}}. Do join us if you are free! {{locationSuffix}}",
   defaultMtrAfternoonText:
@@ -110,7 +121,7 @@ Remarks:
 {{entriesBlock}}`,
   CURRENT_AFFAIR_REMINDER: `sir, is CA sharing at {{time}} today possible?`,
   REQUEST_DI_FP: `Good evening {{recipient}}, {{intro}}permission to have FP {{location}} at {{time}}?`,
-  REQUEST_LP: `Good evening {{recipient}}, permission to have LP {{location}} at {{time}}?`,
+  REQUEST_LP: `Good evening {{recipient}}, {{intro}}permission to have LP {{location}} at {{time}}?`,
   BOOK_IN: `{{unitName}} Book-In
 
 =======================
@@ -136,6 +147,12 @@ Others:
 };
 
 export const LEGACY_DEFAULT_TEMPLATE_BODIES: Partial<Record<TemplateType, readonly string[]>> = {
+  LAST_PARADE_1730: [
+    "Good afternoon sirs, can we have last parade at {{time}}H below {{location}}?",
+  ],
+  REQUEST_LP: [
+    "Good evening {{recipient}}, permission to have LP {{location}} at {{time}}?",
+  ],
   PARADE_MORNING: [
     `{{prefix}}
 

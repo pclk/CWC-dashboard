@@ -70,6 +70,7 @@ export function RecordForm({
   }
 
   const canUseUnknownEndTime = category === "MC" || category === "HL";
+  const requiresTiming = category !== "RSI";
 
   return (
     <form
@@ -79,6 +80,11 @@ export function RecordForm({
         startTransition(async () => {
           formData.set("category", category);
           formData.set("unknownEndTime", String(canUseUnknownEndTime && unknownEndTime));
+          if (!requiresTiming) {
+            formData.set("startAt", "");
+            formData.set("endAt", "");
+            formData.set("unknownEndTime", "false");
+          }
           if (canUseUnknownEndTime && unknownEndTime) {
             formData.set("endAt", "");
           }
@@ -176,42 +182,48 @@ export function RecordForm({
         />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-slate-700">Start</label>
-          <input
-            name="startAt"
-            type="text"
-            inputMode="numeric"
-            autoComplete="off"
-            placeholder="DDMMYY"
-            defaultValue={record?.startAt ? formatCompactDateInputValue(new Date(record.startAt)) : ""}
-            className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-          />
-          <p className="text-xs text-slate-500">Use DDMMYY. Example: 010426.</p>
-        </div>
+      {requiresTiming ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700">Start</label>
+            <input
+              name="startAt"
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder="DDMMYY"
+              defaultValue={record?.startAt ? formatCompactDateInputValue(new Date(record.startAt)) : ""}
+              className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
+            />
+            <p className="text-xs text-slate-500">Use DDMMYY. Example: 010426.</p>
+          </div>
 
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-slate-700">End</label>
-          <input
-            name="endAt"
-            type="text"
-            inputMode="numeric"
-            autoComplete="off"
-            placeholder="DDMMYY"
-            defaultValue={record?.endAt ? formatCompactDateInputValue(new Date(record.endAt)) : ""}
-            disabled={canUseUnknownEndTime && unknownEndTime}
-            className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-          />
-          <p className="text-xs text-slate-500">
-            {canUseUnknownEndTime && unknownEndTime
-              ? "Unknown end time records stay active until you update them manually."
-              : "Records flag at 0000 on the day after the end date."}
-          </p>
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700">End</label>
+            <input
+              name="endAt"
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder="DDMMYY"
+              defaultValue={record?.endAt ? formatCompactDateInputValue(new Date(record.endAt)) : ""}
+              disabled={canUseUnknownEndTime && unknownEndTime}
+              className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
+            />
+            <p className="text-xs text-slate-500">
+              {canUseUnknownEndTime && unknownEndTime
+                ? "Unknown end time records stay active until you update them manually."
+                : "Records flag at 0000 on the day after the end date."}
+            </p>
+          </div>
         </div>
-      </div>
+      ) : (
+        <p className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
+          RSI records do not need timing.
+        </p>
+      )}
 
-      {canUseUnknownEndTime ? (
+      {requiresTiming && canUseUnknownEndTime ? (
         <label className="flex items-center gap-3 rounded-2xl border border-black/10 px-4 py-3 text-sm text-slate-700">
           <input
             type="checkbox"

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import {
+  bulkDeleteDutyInstructorsAction,
   deleteDutyInstructorAction,
   upsertDutyInstructorAction,
 } from "@/actions/duty-instructors";
@@ -40,6 +41,19 @@ export function DutyInstructorTable({
   const [entryMode, setEntryMode] = useState<DutyInstructorEntryMode>("text");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const selectAllRef = useRef<HTMLInputElement | null>(null);
+  const visibleSelectedIds = selectedIds.filter((id) =>
+    dutyInstructors.some((entry) => entry.id === id),
+  );
+  const allSelected = dutyInstructors.length > 0 && visibleSelectedIds.length === dutyInstructors.length;
+  const someSelected = visibleSelectedIds.length > 0 && !allSelected;
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someSelected;
+    }
+  }, [someSelected]);
 
   return (
     <div className="space-y-4">
@@ -185,11 +199,75 @@ export function DutyInstructorTable({
         </form>
       ) : null}
 
+      {!editingEntry && error ? (
+        <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
+      ) : null}
+
       <section className="overflow-hidden rounded-[2rem] border border-black/10 bg-white/90 shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-black/10 px-4 py-3 md:flex-row md:items-center md:justify-between">
+          <label className="flex items-center gap-3 text-sm font-medium text-slate-700">
+            <input
+              ref={selectAllRef}
+              type="checkbox"
+              checked={allSelected}
+              disabled={!dutyInstructors.length || pending}
+              onChange={(event) => {
+                setSelectedIds(event.target.checked ? dutyInstructors.map((entry) => entry.id) : []);
+              }}
+              className="size-4 rounded border-black/20"
+            />
+            Select All
+          </label>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm text-slate-500">
+              {visibleSelectedIds.length ? `${visibleSelectedIds.length} selected` : "No entries selected"}
+            </span>
+            <button
+              type="button"
+              disabled={!visibleSelectedIds.length || pending}
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    `Delete ${visibleSelectedIds.length} selected duty instructor ${
+                      visibleSelectedIds.length === 1 ? "entry" : "entries"
+                    }?`,
+                  )
+                ) {
+                  return;
+                }
+
+                setError(null);
+                startTransition(async () => {
+                  const result = await bulkDeleteDutyInstructorsAction({
+                    ids: visibleSelectedIds,
+                  });
+
+                  if (!result.ok) {
+                    setError(result.error ?? "Unable to delete selected duty instructors.");
+                    return;
+                  }
+
+                  if (editingEntry && visibleSelectedIds.includes(editingEntry.id)) {
+                    setEditingEntry(null);
+                  }
+
+                  setSelectedIds([]);
+                  router.refresh();
+                });
+              }}
+              className="rounded-2xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+            >
+              Delete Selected
+            </button>
+          </div>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-black/10 text-left text-sm">
             <thead className="bg-slate-50 text-slate-600">
               <tr>
+                <th className="px-4 py-3 font-medium">Select</th>
                 <th className="px-4 py-3 font-medium">Date</th>
                 <th className="px-4 py-3 font-medium">Active</th>
                 <th className="px-4 py-3 font-medium">Reserve</th>
@@ -200,6 +278,21 @@ export function DutyInstructorTable({
               {dutyInstructors.length ? (
                 dutyInstructors.map((entry) => (
                   <tr key={entry.id}>
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={visibleSelectedIds.includes(entry.id)}
+                        disabled={pending}
+                        onChange={(event) => {
+                          setSelectedIds((current) =>
+                            event.target.checked
+                              ? [...new Set([...current, entry.id])]
+                              : current.filter((id) => id !== entry.id),
+                          );
+                        }}
+                        className="size-4 rounded border-black/20"
+                      />
+                    </td>
                     <td className="px-4 py-3 text-slate-700">{formatShortDayMonth(new Date(entry.dutyDate))}</td>
                     <td className="px-4 py-3 font-medium text-slate-900">{formatActiveLabel(entry)}</td>
                     <td className="px-4 py-3 text-slate-700">{entry.reserve || "-"}</td>
@@ -233,6 +326,8 @@ export function DutyInstructorTable({
                               if (editingEntry?.id === entry.id) {
                                 setEditingEntry(null);
                               }
+
+                              setSelectedIds((current) => current.filter((id) => id !== entry.id));
                               router.refresh();
                             });
                           }}
@@ -252,7 +347,7 @@ export function DutyInstructorTable({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={4} className="px-4 py-10 text-center text-sm text-slate-500">
+                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-500">
                     No duty instructor entries yet.
                   </td>
                 </tr>

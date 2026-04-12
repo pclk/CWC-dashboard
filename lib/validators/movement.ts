@@ -5,7 +5,7 @@ export const troopMovementSchema = z.object({
   toLocation: z.string().trim().min(1).max(120),
   strengthText: z.string().trim().min(1).max(40),
   arrivalTimeText: z.string().trim().min(1).max(20),
-  remarks: z.array(z.string().trim().max(200)).default([]),
+  remarks: z.array(z.string().trim().max(1000)).default([]),
   finalMessage: z.string().trim().min(1),
 });
 

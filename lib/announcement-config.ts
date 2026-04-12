@@ -27,7 +27,7 @@ export const CURRENT_AFFAIR_SECTION_ID = "announcement-current-affair-sharing";
 export const DEFAULT_ANNOUNCEMENT_TIMES = {
   MTR_1030: "1030",
   MTR_1630: "1630",
-  LAST_PARADE_1730: "1730",
+  LAST_PARADE_1730: "2000",
   FIRST_PARADE: "0545",
   PT: "0715",
   CURRENT_AFFAIR_REMINDER: "1000",

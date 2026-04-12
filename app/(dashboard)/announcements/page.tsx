@@ -1,15 +1,10 @@
 import { AnnouncementPreview } from "@/components/generators/announcement-preview";
-import { CurrentAffairSharingSection } from "@/components/current-affairs/current-affair-sharing-section";
 import { PermissionRequestPreview } from "@/components/generators/permission-request-preview";
 import {
   ANNOUNCEMENT_SECTION_IDS,
-  CURRENT_AFFAIR_SECTION_ID,
   DEFAULT_ANNOUNCEMENT_TIMES,
 } from "@/lib/announcement-config";
-import { getCurrentAffairWeekBounds } from "@/lib/date";
 import {
-  getCadets,
-  getCurrentAffairSharingsForWeek,
   getDutyInstructorForDate,
   getSettingsAndTemplates,
 } from "@/lib/db";
@@ -18,14 +13,10 @@ import { requireUser } from "@/lib/session";
 export default async function AnnouncementsPage() {
   const userId = await requireUser();
   const now = new Date();
-  const [{ settings, templateMap }, currentAffairEntries, cadets, dutyInstructor] = await Promise.all([
+  const [{ settings, templateMap }, dutyInstructor] = await Promise.all([
     getSettingsAndTemplates(userId),
-    getCurrentAffairSharingsForWeek(userId, now),
-    getCadets(userId),
     getDutyInstructorForDate(userId, now),
   ]);
-  const { start: weekStart, end: weekEnd } = getCurrentAffairWeekBounds(now);
-  const presenterSuggestions = cadets.filter((cadet) => cadet.active).map((cadet) => cadet.displayName);
   const dutyInstructorActive = dutyInstructor
     ? [dutyInstructor.rank, dutyInstructor.name].filter(Boolean).join(" ").trim()
     : null;
@@ -41,36 +32,23 @@ export default async function AnnouncementsPage() {
       </section>
 
       <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
-        <AnnouncementPreview
-          id={ANNOUNCEMENT_SECTION_IDS.MTR_1030}
-          draftType="MTR_1030"
-          title="MTR (Lunch)"
-          mode="mtr"
-          templateBody={templateMap.MTR_1030}
-          defaultTime={DEFAULT_ANNOUNCEMENT_TIMES.MTR_1030}
-          initialTime={settings.announcementMtr1030Time}
-          initialLocation={settings.announcementMtr1030Location}
-        />
-        <AnnouncementPreview
-          id={ANNOUNCEMENT_SECTION_IDS.MTR_1630}
-          draftType="MTR_1630"
-          title="MTR (Dinner)"
-          mode="mtr"
-          templateBody={templateMap.MTR_1630}
-          defaultTime={DEFAULT_ANNOUNCEMENT_TIMES.MTR_1630}
-          initialTime={settings.announcementMtr1630Time}
-          initialLocation={settings.announcementMtr1630Location}
-        />
-        <AnnouncementPreview
-          id={ANNOUNCEMENT_SECTION_IDS.MORNING_LAB}
-          draftType="MORNING_LAB"
-          title="Morning Lab"
-          mode="routine"
-          templateBody={templateMap.MORNING_LAB}
-          defaultTime="0745"
-          initialTime={settings.announcementMorningLabTime}
-          initialIsPtDay={settings.announcementMorningLabIsPt}
-          enablePtDayToggle
+        <PermissionRequestPreview
+          id={ANNOUNCEMENT_SECTION_IDS.REQUEST_DI_FP}
+          draftType="REQUEST_DI_FP"
+          title="Request DI for FP"
+          templateBody={templateMap.REQUEST_DI_FP}
+          cohortName={settings.unitName}
+          defaultRecipient="sir"
+          defaultLocation="under block 315e"
+          defaultTime={DEFAULT_ANNOUNCEMENT_TIMES.FIRST_PARADE}
+          initialRecipient={settings.announcementRequestDiRecipient}
+          initialRank={settings.announcementRequestDiRank}
+          initialName={settings.announcementRequestDiName}
+          initialLocation={settings.announcementRequestDiLocation}
+          initialTime={settings.announcementRequestDiTime}
+          initialFirstTime={settings.announcementRequestDiFirstTime}
+          dutyInstructorActive={dutyInstructorActive}
+          dutyInstructorReserve={dutyInstructorReserve}
         />
         <AnnouncementPreview
           id={ANNOUNCEMENT_SECTION_IDS.FIRST_PARADE}
@@ -92,23 +70,36 @@ export default async function AnnouncementsPage() {
           defaultActivity="DI"
           initialActivity={settings.announcementPtActivity}
         />
-        <PermissionRequestPreview
-          id={ANNOUNCEMENT_SECTION_IDS.REQUEST_DI_FP}
-          draftType="REQUEST_DI_FP"
-          title="Request DI for FP"
-          templateBody={templateMap.REQUEST_DI_FP}
-          cohortName={settings.unitName}
-          defaultRecipient="sir"
-          defaultLocation="under block 315e"
-          defaultTime={DEFAULT_ANNOUNCEMENT_TIMES.FIRST_PARADE}
-          initialRecipient={settings.announcementRequestDiRecipient}
-          initialRank={settings.announcementRequestDiRank}
-          initialName={settings.announcementRequestDiName}
-          initialLocation={settings.announcementRequestDiLocation}
-          initialTime={settings.announcementRequestDiTime}
-          initialFirstTime={settings.announcementRequestDiFirstTime}
-          dutyInstructorActive={dutyInstructorActive}
-          dutyInstructorReserve={dutyInstructorReserve}
+        <AnnouncementPreview
+          id={ANNOUNCEMENT_SECTION_IDS.MORNING_LAB}
+          draftType="MORNING_LAB"
+          title="Morning Lab"
+          mode="routine"
+          templateBody={templateMap.MORNING_LAB}
+          defaultTime="0745"
+          initialTime={settings.announcementMorningLabTime}
+          initialIsPtDay={settings.announcementMorningLabIsPt}
+          enablePtDayToggle
+        />
+        <AnnouncementPreview
+          id={ANNOUNCEMENT_SECTION_IDS.MTR_1030}
+          draftType="MTR_1030"
+          title="MTR (Lunch)"
+          mode="mtr"
+          templateBody={templateMap.MTR_1030}
+          defaultTime={DEFAULT_ANNOUNCEMENT_TIMES.MTR_1030}
+          initialTime={settings.announcementMtr1030Time}
+          initialLocation={settings.announcementMtr1030Location}
+        />
+        <AnnouncementPreview
+          id={ANNOUNCEMENT_SECTION_IDS.MTR_1630}
+          draftType="MTR_1630"
+          title="MTR (Dinner)"
+          mode="mtr"
+          templateBody={templateMap.MTR_1630}
+          defaultTime={DEFAULT_ANNOUNCEMENT_TIMES.MTR_1630}
+          initialTime={settings.announcementMtr1630Time}
+          initialLocation={settings.announcementMtr1630Location}
         />
         <PermissionRequestPreview
           id={ANNOUNCEMENT_SECTION_IDS.REQUEST_LP}
@@ -120,23 +111,26 @@ export default async function AnnouncementsPage() {
           defaultLocation="outside spectrum mess"
           defaultTime={DEFAULT_ANNOUNCEMENT_TIMES.REQUEST_LP}
           initialRecipient={settings.announcementRequestLpRecipient}
+          initialRank={settings.announcementRequestLpRank}
+          initialName={settings.announcementRequestLpName}
           initialLocation={settings.announcementRequestLpLocation}
           initialTime={settings.announcementRequestLpTime}
+          initialFirstTime={settings.announcementRequestLpFirstTime}
           dutyInstructorActive={dutyInstructorActive}
           dutyInstructorReserve={dutyInstructorReserve}
         />
+        <AnnouncementPreview
+          id={ANNOUNCEMENT_SECTION_IDS.LAST_PARADE_1730}
+          draftType="LAST_PARADE_1730"
+          title="Last Parade"
+          mode="last-parade"
+          templateBody={templateMap.LAST_PARADE_1730}
+          defaultTime={DEFAULT_ANNOUNCEMENT_TIMES.LAST_PARADE_1730}
+          defaultLocation="Under Block 315e"
+          initialTime={settings.announcementLastParadeTime}
+          initialLocation={settings.announcementLastParadeLocation}
+        />
       </div>
-
-      <CurrentAffairSharingSection
-        id={CURRENT_AFFAIR_SECTION_ID}
-        templateBody={templateMap.CURRENT_AFFAIR_SHARING}
-        reminderTemplateBody={templateMap.CURRENT_AFFAIR_REMINDER}
-        sharingTime={DEFAULT_ANNOUNCEMENT_TIMES.CURRENT_AFFAIR_SHARING}
-        entries={currentAffairEntries}
-        rangeStart={weekStart}
-        rangeEnd={weekEnd}
-        presenterSuggestions={presenterSuggestions}
-      />
     </div>
   );
 }

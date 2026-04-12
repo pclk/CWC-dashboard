@@ -5,11 +5,18 @@ import {
   CURRENT_AFFAIR_SECTION_ID,
   DEFAULT_ANNOUNCEMENT_TIMES,
 } from "@/lib/announcement-config";
-import { formatCompactDmy, formatTimeText } from "@/lib/date";
 import {
+  formatCompactDmy,
+  formatTimeText,
+  getCurrentAffairWeekBounds,
+} from "@/lib/date";
+import {
+  formatCurrentAffairDateRange,
   generateCurrentAffairReminderMessage,
+  generateCurrentAffairSharingMessage,
 } from "@/lib/generators/current-affairs";
 import {
+  generateLastParadeMessage,
   generateMtrAnnouncementMessage,
   generateRoutineAnnouncementMessage,
   getMorningLabDefaultTime,
@@ -28,6 +35,8 @@ export type DashboardNextAction = {
   href: string;
   hrefLabel: string;
 };
+
+type DashboardActionSource = "parade-state" | "announcements" | "current-affairs";
 
 type DashboardActionSettings = {
   announcementMtr1030Time?: string | null;
@@ -48,8 +57,22 @@ type DashboardActionSettings = {
   announcementRequestDiTime?: string | null;
   announcementRequestDiFirstTime?: boolean;
   announcementRequestLpRecipient?: string | null;
+  announcementRequestLpRank?: string | null;
+  announcementRequestLpName?: string | null;
   announcementRequestLpLocation?: string | null;
   announcementRequestLpTime?: string | null;
+  announcementRequestLpFirstTime?: boolean;
+};
+
+type DashboardCurrentAffairEntry = {
+  sharingDate: Date | string;
+  scope: "LOCAL" | "OVERSEAS" | "TBC";
+  presenter: string;
+  title: string;
+};
+
+type DashboardNextActionCandidate = DashboardNextAction & {
+  source: DashboardActionSource;
 };
 
 function resolveTime(value: string | null | undefined, fallback: string) {
@@ -67,6 +90,18 @@ function normalizeTimeValue(value: string) {
   return value.trim();
 }
 
+function formatCurrentAffairScopeLabel(scope: DashboardCurrentAffairEntry["scope"]) {
+  if (scope === "LOCAL") {
+    return "Local";
+  }
+
+  if (scope === "OVERSEAS") {
+    return "Overseas";
+  }
+
+  return "TBC";
+}
+
 export function buildDashboardNextActions(input: {
   now?: Date;
   settings: DashboardActionSettings;
@@ -75,6 +110,7 @@ export function buildDashboardNextActions(input: {
   nightParadeInput: ParadeStateInput;
   cohortName: string;
   hasCurrentAffairToday: boolean;
+  currentAffairWeekEntries: DashboardCurrentAffairEntry[];
 }) {
   const now = input.now ?? new Date();
   const currentTime = formatTimeText(now);
@@ -110,22 +146,31 @@ export function buildDashboardNextActions(input: {
     DEFAULT_ANNOUNCEMENT_TIMES.REQUEST_LP,
   );
   const requestLpRecipient = input.settings.announcementRequestLpRecipient?.trim() || "ma'am";
+  const requestLpRank = input.settings.announcementRequestLpRank?.trim() || "";
+  const requestLpName = input.settings.announcementRequestLpName?.trim() || "";
   const requestLpLocation =
     input.settings.announcementRequestLpLocation?.trim() || "outside spectrum mess";
+  const lastParadeTime = resolveTime(
+    input.settings.announcementLastParadeTime,
+    DEFAULT_ANNOUNCEMENT_TIMES.LAST_PARADE_1730,
+  );
+  const lastParadeLocation = input.settings.announcementLastParadeLocation?.trim() || "Under Block 315e";
   const currentAffairReminderTime = DEFAULT_ANNOUNCEMENT_TIMES.CURRENT_AFFAIR_REMINDER;
+  const currentAffairSharingTime = DEFAULT_ANNOUNCEMENT_TIMES.CURRENT_AFFAIR_SHARING;
+  const { start: currentAffairWeekStart, end: currentAffairWeekEnd } = getCurrentAffairWeekBounds(now);
+  const currentAffairDateRange = formatCurrentAffairDateRange(currentAffairWeekStart, currentAffairWeekEnd);
   const morningParadeHref = `/parade-state?${new URLSearchParams({
     reportType: "Morning",
     reportAt: `${today} ${DEFAULT_ANNOUNCEMENT_TIMES.PARADE_STATE_MORNING}`,
-    reportTimeLabel: "Morning",
   }).toString()}`;
   const nightParadeHref = `/parade-state?${new URLSearchParams({
     reportType: "Night",
     reportAt: `${today} ${DEFAULT_ANNOUNCEMENT_TIMES.PARADE_STATE_NIGHT}`,
-    reportTimeLabel: "Night",
   }).toString()}`;
 
-  const allActions: DashboardNextAction[] = [
+  const allActions: DashboardNextActionCandidate[] = [
     {
+      source: "announcements",
       id: "first-parade",
       title: "First Parade",
       time: firstParadeTime,
@@ -136,6 +181,7 @@ export function buildDashboardNextActions(input: {
       hrefLabel: "Go to Announcements",
     },
     {
+      source: "parade-state",
       id: "parade-state-morning",
       title: "Parade State (Morning)",
       time: DEFAULT_ANNOUNCEMENT_TIMES.PARADE_STATE_MORNING,
@@ -147,6 +193,7 @@ export function buildDashboardNextActions(input: {
       hrefLabel: "Go to Parade State",
     },
     {
+      source: "announcements",
       id: "pt",
       title: "PT",
       time: ptTime,
@@ -158,16 +205,35 @@ export function buildDashboardNextActions(input: {
       hrefLabel: "Go to Announcements",
     },
     {
+      source: "current-affairs",
       id: "current-affair-reminder",
       title: "Current Affair Reminder",
       time: currentAffairReminderTime,
       copyText: generateCurrentAffairReminderMessage(input.templateMap.CURRENT_AFFAIR_REMINDER, {
         time: DEFAULT_ANNOUNCEMENT_TIMES.CURRENT_AFFAIR_SHARING,
       }),
-      href: `/announcements#${CURRENT_AFFAIR_SECTION_ID}`,
-      hrefLabel: "Go to Announcements",
+      href: `/current-affairs#${CURRENT_AFFAIR_SECTION_ID}`,
+      hrefLabel: "Go to Current Affairs",
     },
     {
+      source: "current-affairs",
+      id: "current-affair-sharing",
+      title: "Current Affair Sharing",
+      time: currentAffairSharingTime,
+      copyText: generateCurrentAffairSharingMessage(input.templateMap.CURRENT_AFFAIR_SHARING, {
+        dateRange: currentAffairDateRange,
+        entries: input.currentAffairWeekEntries.map((entry) => ({
+          sharingDate: new Date(entry.sharingDate),
+          scope: formatCurrentAffairScopeLabel(entry.scope),
+          presenter: entry.presenter,
+          title: entry.title,
+        })),
+      }),
+      href: `/current-affairs#${CURRENT_AFFAIR_SECTION_ID}`,
+      hrefLabel: "Go to Current Affairs",
+    },
+    {
+      source: "announcements",
       id: "morning-lab",
       title: "Morning Lab",
       time: morningLabTime,
@@ -178,6 +244,7 @@ export function buildDashboardNextActions(input: {
       hrefLabel: "Go to Announcements",
     },
     {
+      source: "announcements",
       id: "mtr-1030",
       title: "MTR (Lunch)",
       time: mtr1030Time,
@@ -189,6 +256,7 @@ export function buildDashboardNextActions(input: {
       hrefLabel: "Go to Announcements",
     },
     {
+      source: "announcements",
       id: "mtr-1630",
       title: "MTR (Dinner)",
       time: mtr1630Time,
@@ -200,6 +268,7 @@ export function buildDashboardNextActions(input: {
       hrefLabel: "Go to Announcements",
     },
     {
+      source: "announcements",
       id: "request-di-fp",
       title: "Request DI for FP",
       time: requestDiMessageTime,
@@ -216,18 +285,36 @@ export function buildDashboardNextActions(input: {
       hrefLabel: "Go to Announcements",
     },
     {
+      source: "announcements",
       id: "request-lp",
       title: "Request DI for LP",
       time: requestLpMessageTime,
       copyText: generateRequestLpMessage(input.templateMap.REQUEST_LP, {
         recipient: requestLpRecipient,
+        rank: requestLpRank,
+        name: requestLpName,
+        cohortName: input.cohortName,
         location: requestLpLocation,
         time: requestLpMessageTime,
+        firstTime: Boolean(input.settings.announcementRequestLpFirstTime),
       }),
       href: `/announcements#${ANNOUNCEMENT_SECTION_IDS.REQUEST_LP}`,
       hrefLabel: "Go to Announcements",
     },
     {
+      source: "announcements",
+      id: "last-parade",
+      title: "Last Parade",
+      time: lastParadeTime,
+      copyText: generateLastParadeMessage(input.templateMap.LAST_PARADE_1730, {
+        time: lastParadeTime,
+        location: lastParadeLocation,
+      }),
+      href: `/announcements#${ANNOUNCEMENT_SECTION_IDS.LAST_PARADE_1730}`,
+      hrefLabel: "Go to Announcements",
+    },
+    {
+      source: "parade-state",
       id: "parade-state-night",
       title: "Parade State (Night)",
       time: DEFAULT_ANNOUNCEMENT_TIMES.PARADE_STATE_NIGHT,
@@ -240,16 +327,41 @@ export function buildDashboardNextActions(input: {
     },
   ];
 
-  const actions = allActions
+  const upcomingActions = allActions
     .filter((action) => input.hasCurrentAffairToday || action.id !== "current-affair-reminder")
+    .filter((action) => input.hasCurrentAffairToday || action.id !== "current-affair-sharing")
     .map((action, index) => ({
-      ...action,
+      action,
       order: index,
-      time: normalizeTimeValue(action.time),
+      normalizedTime: normalizeTimeValue(action.time),
     }))
-    .filter((action) => action.time >= normalizeTimeValue(currentTime))
-    .sort((left, right) => left.time.localeCompare(right.time) || left.order - right.order)
-    .slice(0, 3);
+    .filter((entry) => entry.normalizedTime >= normalizeTimeValue(currentTime))
+    .sort(
+      (left, right) =>
+        left.normalizedTime.localeCompare(right.normalizedTime) || left.order - right.order,
+    );
+
+  const nextActionBySource = new Map<DashboardActionSource, (typeof upcomingActions)[number]>();
+
+  for (const entry of upcomingActions) {
+    if (!nextActionBySource.has(entry.action.source)) {
+      nextActionBySource.set(entry.action.source, entry);
+    }
+  }
+
+  const actions = Array.from(nextActionBySource.values())
+    .sort(
+      (left, right) =>
+        left.normalizedTime.localeCompare(right.normalizedTime) || left.order - right.order,
+    )
+    .map((entry) => ({
+      id: entry.action.id,
+      title: entry.action.title,
+      time: entry.action.time,
+      copyText: entry.action.copyText,
+      href: entry.action.href,
+      hrefLabel: entry.action.hrefLabel,
+    }));
 
   return {
     currentTime,

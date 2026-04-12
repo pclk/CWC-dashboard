@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import {
   announcementDraftSchema,
+  bunkDraftSchema,
   paradeDraftSchema,
   troopMovementDraftSchema,
 } from "@/lib/validators/generator-drafts";
@@ -72,8 +73,11 @@ export async function updateAnnouncementDraftAction(input: {
                     }
                   : {
                       announcementRequestLpRecipient: parsed.data.recipient,
+                      announcementRequestLpRank: parsed.data.rank,
+                      announcementRequestLpName: parsed.data.name,
                       announcementRequestLpLocation: parsed.data.location,
                       announcementRequestLpTime: parsed.data.time,
+                      announcementRequestLpFirstTime: parsed.data.firstTime,
                     };
 
   await prisma.userSettings.update({
@@ -87,8 +91,6 @@ export async function updateAnnouncementDraftAction(input: {
 export async function updateParadeDraftAction(input: {
   reportType: "Morning" | "Night" | "Custom";
   reportAtValue: string;
-  reportTimeLabel: string;
-  prefixOverride: string;
 }): Promise<ActionResult> {
   const userId = await requireUser();
   const parsed = paradeDraftSchema.safeParse(input);
@@ -104,8 +106,6 @@ export async function updateParadeDraftAction(input: {
     data: {
       paradeDraftReportType: parsed.data.reportType,
       paradeDraftReportAtValue: parsed.data.reportAtValue,
-      paradeDraftReportTimeLabel: parsed.data.reportTimeLabel,
-      paradeDraftPrefixOverride: parsed.data.prefixOverride,
     },
   });
 
@@ -140,4 +140,28 @@ export async function updateTroopMovementDraftAction(input: {
   });
 
   return success("Movement draft saved.");
+}
+
+export async function updateBunkDraftAction(input: {
+  yesterdayLastBunkNumber: number | null;
+  havePtToday: boolean;
+}): Promise<ActionResult> {
+  const userId = await requireUser();
+  const parsed = bunkDraftSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return failure(parsed.error.issues[0]?.message ?? "Invalid bunk draft.");
+  }
+
+  await ensureUserConfiguration(userId);
+
+  await prisma.userSettings.update({
+    where: { userId },
+    data: {
+      bunkDraftYesterdayLastBunkNumber: parsed.data.yesterdayLastBunkNumber,
+      bunkDraftHavePtToday: parsed.data.havePtToday,
+    },
+  });
+
+  return success("Bunk draft saved.");
 }

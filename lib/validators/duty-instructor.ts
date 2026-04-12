@@ -42,3 +42,7 @@ export const dutyInstructorSchema = z.object({
 export const dutyInstructorDeleteSchema = z.object({
   id: z.string().min(1),
 });
+
+export const dutyInstructorBulkDeleteSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, "Select at least one duty instructor entry."),
+});
