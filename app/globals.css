@@ -50,6 +50,18 @@ button {
   cursor: pointer;
 }
 
+@layer base {
+  :where(a, button, [role="button"], [role="link"], [role="tab"]).bg-teal-700,
+  :where(a, button, [role="button"], [role="link"], [role="tab"]).bg-teal-800 {
+    color: var(--primary-foreground);
+  }
+
+  :where(a, button, [role="button"], [role="link"], [role="tab"]).bg-teal-700 :where(*),
+  :where(a, button, [role="button"], [role="link"], [role="tab"]).bg-teal-800 :where(*) {
+    color: inherit;
+  }
+}
+
 ::selection {
   background: rgba(15, 118, 110, 0.2);
 }

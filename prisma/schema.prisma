@@ -74,6 +74,7 @@ model UserSettings {
   nightStudyDraftMode String       @default("NIGHT_STUDY")
   nightStudyPrimaryNamesText String?
   nightStudyEarlyPartyNamesText String?
+  nightStudyOtherNamesText String?
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
@@ -85,6 +86,7 @@ model Cadet {
   userId        String
   rank          String   @default("ME4T")
   displayName   String
+  shorthand     String?
   active        Boolean  @default(true)
   sortOrder     Int      @default(0)
   notes         String?

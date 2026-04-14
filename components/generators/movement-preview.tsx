@@ -18,14 +18,15 @@ import {
   autoCorrectTroopMovementRemarkRow,
   buildTroopMovementStrengthText,
   createEmptyTroopMovementRemarkRow,
+  formatTroopMovementRemarkNames,
   formatTroopMovementRemarkRows,
   parseTroopMovementDraftText,
-  parseTroopMovementRemarkLines,
   resolveTroopMovementRemarkRowCount,
   serializeTroopMovementDraft,
   type TroopMovementCadetOption,
   type TroopMovementDraftState,
   type TroopMovementRemarkRow,
+  type TroopMovementRemarkSuggestion,
   type TroopMovementStrengthMode,
 } from "@/lib/troop-movement-remarks";
 
@@ -60,14 +61,14 @@ export function MovementPreview({
   templateBody: string;
   suggestedStrengthText: string;
   totalStrength: number;
-  remarkSuggestions: string[];
+  remarkSuggestions: TroopMovementRemarkSuggestion[];
   activeCadets: TroopMovementCadetOption[];
   initialFromLocation?: string | null;
   initialToLocation?: string | null;
   initialStrengthText?: string | null;
   initialArrivalTimeText?: string | null;
   initialRemarksText?: string | null;
-  nightStudyRemarkSuggestions: string[];
+  nightStudyRemarkSuggestions: TroopMovementRemarkSuggestion[];
   nightStudyErrors: string[];
   history: MovementHistory[];
 }) {
@@ -117,7 +118,7 @@ export function MovementPreview({
     return formatTroopMovementRemarkRows(resolvedRemarkRows);
   }
 
-  function mergeRemarkSuggestions(nextSuggestions: string[]) {
+  function mergeRemarkSuggestions(nextSuggestions: TroopMovementRemarkSuggestion[]) {
     setRemarkRows((current) => {
       const currentRows = current.filter((row) => hasRemarkRowContent(row));
       const currentKeys = new Set(
@@ -125,7 +126,7 @@ export function MovementPreview({
           currentRows.map((row) => autoCorrectTroopMovementRemarkRow(row, activeCadets)),
         ).map((line) => line.toLowerCase()),
       );
-      const nextRows = parseTroopMovementRemarkLines(nextSuggestions).filter((row) => {
+      const nextRows = buildRemarkRowsFromSuggestions(nextSuggestions).filter((row) => {
         const [line] = formatTroopMovementRemarkRows([
           autoCorrectTroopMovementRemarkRow(row, activeCadets),
         ]);
@@ -502,7 +503,7 @@ function hasRemarkRowContent(row: TroopMovementRemarkRow) {
 
 function resolveInitialRemarkDraft(
   initialRemarksText: string | null | undefined,
-  remarkSuggestions: string[],
+  remarkSuggestions: TroopMovementRemarkSuggestion[],
 ): TroopMovementDraftState {
   if (initialRemarksText?.trim()) {
     return parseTroopMovementDraftText(initialRemarksText);
@@ -510,6 +511,18 @@ function resolveInitialRemarkDraft(
 
   return {
     strengthMode: "MANUAL",
-    rows: parseTroopMovementRemarkLines(remarkSuggestions),
+    rows: buildRemarkRowsFromSuggestions(remarkSuggestions),
   };
+}
+
+function buildRemarkRowsFromSuggestions(
+  suggestions: TroopMovementRemarkSuggestion[],
+): TroopMovementRemarkRow[] {
+  return suggestions
+    .map((suggestion) => ({
+      countText: suggestion.names.length ? String(suggestion.names.length) : "",
+      group: suggestion.group.trim(),
+      namesText: formatTroopMovementRemarkNames(suggestion.names),
+    }))
+    .filter((row) => hasRemarkRowContent(row));
 }
