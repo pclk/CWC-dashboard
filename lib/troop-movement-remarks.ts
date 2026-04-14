@@ -1,12 +1,26 @@
+import {
+  getCadetFullDisplayName,
+  getCadetNameAliases,
+  getCadetPreferredName,
+  getCadetShorthand,
+} from "@/lib/cadet-names";
+
 export type TroopMovementCadetOption = {
   rank?: string | null;
   displayName: string;
+  shorthand?: string | null;
+  fullDisplayName?: string | null;
 };
 
 export type TroopMovementRemarkRow = {
   countText: string;
   group: string;
   namesText: string;
+};
+
+export type TroopMovementRemarkSuggestion = {
+  group: string;
+  names: string[];
 };
 
 export const TROOP_MOVEMENT_STRENGTH_MODES = ["MANUAL", "SUBTRACT", "SET"] as const;
@@ -80,29 +94,31 @@ type CadetCandidate = {
 
 function buildCadetCandidates(activeCadets: TroopMovementCadetOption[]) {
   const candidates: CadetCandidate[] = [];
-  const seenDisplayNames = new Set<string>();
+  const seenCadetNames = new Set<string>();
 
   for (const cadet of activeCadets) {
-    const displayName = normalizeWhitespace(cadet.displayName);
-    const normalizedDisplayName = normalizeName(displayName);
+    const displayName = normalizeWhitespace(getCadetPreferredName(cadet));
+    const fullDisplayName = normalizeWhitespace(getCadetFullDisplayName(cadet));
+    const shorthand = normalizeWhitespace(getCadetShorthand(cadet) ?? "");
+    const normalizedCadetName = normalizeName(fullDisplayName || displayName);
+    const baseNames = [displayName, fullDisplayName, shorthand]
+      .map((name) => normalizeName(name))
+      .filter(Boolean);
 
-    if (!normalizedDisplayName || seenDisplayNames.has(normalizedDisplayName)) {
+    if (!normalizedCadetName || seenCadetNames.has(normalizedCadetName)) {
       continue;
     }
 
-    seenDisplayNames.add(normalizedDisplayName);
+    seenCadetNames.add(normalizedCadetName);
 
-    const rankedName = [cadet.rank?.trim(), displayName].filter(Boolean).join(" ");
-    const exactKeys = new Set<string>(
-      [displayName, rankedName].map(normalizeName).filter(Boolean),
-    );
+    const exactKeys = new Set<string>(getCadetNameAliases(cadet).map(normalizeName).filter(Boolean));
     const searchKeys = Array.from(
-      new Set([displayName, rankedName].map(collapseName).filter(Boolean)),
+      new Set(getCadetNameAliases(cadet).map(collapseName).filter(Boolean)),
     );
 
     candidates.push({
       displayName,
-      tokens: new Set(normalizedDisplayName.split(" ").filter(Boolean)),
+      tokens: new Set(baseNames.flatMap((name) => name.split(" ").filter(Boolean))),
       exactKeys,
       searchKeys,
     });

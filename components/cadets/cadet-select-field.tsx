@@ -3,23 +3,49 @@
 import { Check, ChevronDown } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 
+import { getCadetFullDisplayName, getCadetShorthand } from "@/lib/cadet-names";
 import { cn } from "@/lib/utils";
 
 type CadetOption = {
   id: string;
   rank: string;
   displayName: string;
+  shorthand?: string | null;
   active: boolean;
 };
 
-function matchesCadetSearch(cadet: CadetOption, query: string) {
-  const searchableText = [cadet.rank, cadet.displayName].join(" ").toLowerCase();
+function getCadetSearchValues(cadet: CadetOption) {
+  const fullDisplayName = getCadetFullDisplayName(cadet);
+  const shorthand = getCadetShorthand(cadet);
 
-  return searchableText.includes(query);
+  return Array.from(
+    new Set(
+      [
+        cadet.rank,
+        fullDisplayName,
+        shorthand,
+        [cadet.rank, fullDisplayName].filter(Boolean).join(" "),
+        shorthand ? [cadet.rank, shorthand].filter(Boolean).join(" ") : null,
+      ]
+        .filter((value): value is string => Boolean(value))
+        .map((value) => value.toLowerCase()),
+    ),
+  );
+}
+
+function matchesCadetSearch(cadet: CadetOption, query: string) {
+  return getCadetSearchValues(cadet).some((value) => value.includes(query));
 }
 
 function getCadetLabel(cadet: CadetOption) {
-  return `${cadet.rank} ${cadet.displayName}`;
+  const fullDisplayName = getCadetFullDisplayName(cadet);
+  const shorthand = getCadetShorthand(cadet);
+
+  if (shorthand && shorthand.toLowerCase() !== fullDisplayName.toLowerCase()) {
+    return `${cadet.rank} ${fullDisplayName} (${shorthand})`;
+  }
+
+  return `${cadet.rank} ${fullDisplayName}`;
 }
 
 function syncCadetInputValidity(
@@ -139,8 +165,11 @@ export function CadetSelectField({
           }}
           onChange={(event) => {
             const nextQuery = event.target.value;
+            const normalizedNextQuery = nextQuery.trim().toLowerCase();
             const exactMatch = availableCadets.find(
-              (cadet) => getCadetLabel(cadet).toLowerCase() === nextQuery.trim().toLowerCase(),
+              (cadet) =>
+                getCadetLabel(cadet).toLowerCase() === normalizedNextQuery ||
+                getCadetSearchValues(cadet).some((value) => value === normalizedNextQuery),
             );
 
             setSearchQuery(nextQuery);

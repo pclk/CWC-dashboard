@@ -11,9 +11,11 @@ export default async function NightStudyPage() {
     return (
       <NightStudyManager
         activeCadets={context.activeCadets}
+        automaticOthersNames={context.automaticOthersNames}
         initialMode={context.mode}
         initialPrimaryNamesText={context.primaryNamesText}
         initialEarlyPartyNamesText={context.earlyPartyNamesText}
+        initialOtherNamesText={context.otherNamesText}
       />
     );
   });

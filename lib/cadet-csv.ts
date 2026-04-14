@@ -3,16 +3,23 @@ import { cadetSchema } from "@/lib/validators/cadet";
 export type ParsedCadetCsvRow = {
   rank: string;
   displayName: string;
+  shorthand?: string;
   active: boolean;
   sortOrder: number;
   notes?: string;
   lineNumber: number;
 };
 
-const HEADER_ALIASES: Record<string, "rank" | "displayName" | "active" | "sortOrder" | "notes"> = {
+const HEADER_ALIASES: Record<
+  string,
+  "rank" | "displayName" | "shorthand" | "active" | "sortOrder" | "notes"
+> = {
   rank: "rank",
   displayname: "displayName",
   name: "displayName",
+  shorthand: "shorthand",
+  nickname: "shorthand",
+  shortname: "shorthand",
   active: "active",
   status: "active",
   sortorder: "sortOrder",
@@ -48,6 +55,7 @@ export function parseCadetCsv(csvText: string): ParsedCadetCsvRow[] {
 
     const rawRank = getCell(row, headerIndexes.rank);
     const rawDisplayName = getCell(row, headerIndexes.displayName);
+    const rawShorthand = getCell(row, headerIndexes.shorthand);
     const rawActive = getCell(row, headerIndexes.active);
     const rawSortOrder = getCell(row, headerIndexes.sortOrder);
     const rawNotes = getCell(row, headerIndexes.notes);
@@ -55,6 +63,7 @@ export function parseCadetCsv(csvText: string): ParsedCadetCsvRow[] {
     const parsed = cadetSchema.safeParse({
       rank: rawRank || "ME4T",
       displayName: rawDisplayName,
+      shorthand: rawShorthand,
       active: parseActiveValue(rawActive, lineNumber),
       sortOrder: parseSortOrderValue(rawSortOrder, lineNumber),
       notes: rawNotes,
@@ -67,6 +76,7 @@ export function parseCadetCsv(csvText: string): ParsedCadetCsvRow[] {
     parsedRows.push({
       rank: parsed.data.rank,
       displayName: parsed.data.displayName,
+      shorthand: parsed.data.shorthand || undefined,
       active: parsed.data.active,
       sortOrder: parsed.data.sortOrder,
       notes: parsed.data.notes || undefined,
@@ -78,7 +88,9 @@ export function parseCadetCsv(csvText: string): ParsedCadetCsvRow[] {
 }
 
 function getHeaderIndexes(headers: string[]) {
-  const indexes: Partial<Record<"rank" | "displayName" | "active" | "sortOrder" | "notes", number>> = {};
+  const indexes: Partial<
+    Record<"rank" | "displayName" | "shorthand" | "active" | "sortOrder" | "notes", number>
+  > = {};
 
   headers.forEach((header, index) => {
     const canonicalKey = HEADER_ALIASES[normalizeHeader(header)];
