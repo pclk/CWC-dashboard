@@ -83,6 +83,15 @@ function sortCadets(cadets: Cadet[]) {
   );
 }
 
+function sortNightStudyCadets(cadets: Cadet[]) {
+  return [...cadets].sort(
+    (left, right) =>
+      left.sortOrder - right.sortOrder ||
+      getCadetPreferredName(left).localeCompare(getCadetPreferredName(right)) ||
+      left.displayName.localeCompare(right.displayName),
+  );
+}
+
 function sortOperationalRecords(records: OperationalRecordWithCadet[]) {
   return [...records].sort(
     (left, right) =>
@@ -581,12 +590,13 @@ export async function getNightStudyCadetGroups(userId: string, now = new Date())
     todayAppointments,
     now,
   );
+  const nightStudyCadets = sortNightStudyCadets(activeCadets).map(toPreferredCadetOption);
 
   return {
-    activeCadets: activeCadets.map(toPreferredCadetOption),
-    automaticOthersNames: activeCadets
+    activeCadets: nightStudyCadets,
+    automaticOthersNames: nightStudyCadets
       .filter((cadet) => automaticOthersCadetIds.has(cadet.id))
-      .map((cadet) => getCadetPreferredName(cadet)),
+      .map((cadet) => cadet.displayName),
   };
 }
 

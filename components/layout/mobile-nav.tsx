@@ -22,7 +22,7 @@ export function MobileNav() {
                 href={item.href}
                 className={cn(
                   "min-w-[5.5rem] rounded-2xl px-2 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.16em]",
-                  active ? "bg-teal-700 text-white" : "text-slate-600",
+                  active ? "bg-[var(--primary)] text-white" : "text-slate-600",
                 )}
               >
                 {item.shortLabel}
