@@ -35,10 +35,11 @@ export function Sidebar({
               <div key={item.href} className={item.separatorBefore ? "mt-3 border-t border-black/10 pt-3" : ""}>
                 <Link
                   href={item.href}
+                  aria-current={active ? "page" : undefined}
                   className={cn(
                     "flex items-center rounded-2xl px-4 py-3 text-sm font-medium transition",
                     active
-                      ? "bg-[var(--primary)] text-white shadow-sm"
+                      ? "bg-[var(--primary)] !text-white shadow-sm"
                       : "text-slate-700 hover:bg-slate-100 hover:text-slate-900",
                   )}
                 >
