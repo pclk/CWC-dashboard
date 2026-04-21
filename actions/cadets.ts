@@ -16,6 +16,7 @@ export async function upsertCadetAction(formData: FormData): Promise<ActionResul
     id: parseOptionalString(formData.get("id")) || undefined,
     rank: parseOptionalString(formData.get("rank")),
     displayName: parseOptionalString(formData.get("displayName")),
+    shorthand: parseOptionalString(formData.get("shorthand")),
     active: parseCheckbox(formData.get("active")),
     sortOrder: parseNumber(formData.get("sortOrder")),
     notes: parseOptionalString(formData.get("notes")),
@@ -35,6 +36,7 @@ export async function upsertCadetAction(formData: FormData): Promise<ActionResul
       data: {
         rank: parsed.data.rank,
         displayName: parsed.data.displayName,
+        shorthand: parsed.data.shorthand || null,
         active: parsed.data.active,
         sortOrder: parsed.data.sortOrder,
         notes: parsed.data.notes || null,
@@ -46,6 +48,7 @@ export async function upsertCadetAction(formData: FormData): Promise<ActionResul
         userId,
         rank: parsed.data.rank,
         displayName: parsed.data.displayName,
+        shorthand: parsed.data.shorthand || null,
         active: parsed.data.active,
         sortOrder: parsed.data.sortOrder,
         notes: parsed.data.notes || null,
@@ -192,6 +195,7 @@ function buildCadetData(row: ParsedCadetCsvRow) {
   return {
     rank: row.rank,
     displayName: row.displayName,
+    shorthand: row.shorthand || null,
     active: row.active,
     sortOrder: row.sortOrder,
     notes: row.notes || null,

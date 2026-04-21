@@ -1,12 +1,26 @@
+import {
+  getCadetFullDisplayName,
+  getCadetNameAliases,
+  getCadetPreferredName,
+  getCadetShorthand,
+} from "@/lib/cadet-names";
+
 export type TroopMovementCadetOption = {
   rank?: string | null;
   displayName: string;
+  shorthand?: string | null;
+  fullDisplayName?: string | null;
 };
 
 export type TroopMovementRemarkRow = {
   countText: string;
   group: string;
   namesText: string;
+};
+
+export type TroopMovementRemarkSuggestion = {
+  group: string;
+  names: string[];
 };
 
 export const TROOP_MOVEMENT_STRENGTH_MODES = ["MANUAL", "SUBTRACT", "SET"] as const;
@@ -24,6 +38,17 @@ const STATUS_REMARK_PATTERN = /^\d+\s*x\s+status\b/i;
 
 function normalizeWhitespace(value: string) {
   return value.trim().replace(/\s+/g, " ");
+}
+
+function splitExplicitRemarkNameLines(value: string) {
+  return value
+    .split(/\r?\n|;/)
+    .map((name) => normalizeWhitespace(name))
+    .filter(Boolean);
+}
+
+function hasExplicitRemarkNameSeparators(value: string) {
+  return /[\n;]/.test(value);
 }
 
 function normalizeName(value: string) {
@@ -69,29 +94,31 @@ type CadetCandidate = {
 
 function buildCadetCandidates(activeCadets: TroopMovementCadetOption[]) {
   const candidates: CadetCandidate[] = [];
-  const seenDisplayNames = new Set<string>();
+  const seenCadetNames = new Set<string>();
 
   for (const cadet of activeCadets) {
-    const displayName = normalizeWhitespace(cadet.displayName);
-    const normalizedDisplayName = normalizeName(displayName);
+    const displayName = normalizeWhitespace(getCadetPreferredName(cadet));
+    const fullDisplayName = normalizeWhitespace(getCadetFullDisplayName(cadet));
+    const shorthand = normalizeWhitespace(getCadetShorthand(cadet) ?? "");
+    const normalizedCadetName = normalizeName(fullDisplayName || displayName);
+    const baseNames = [displayName, fullDisplayName, shorthand]
+      .map((name) => normalizeName(name))
+      .filter(Boolean);
 
-    if (!normalizedDisplayName || seenDisplayNames.has(normalizedDisplayName)) {
+    if (!normalizedCadetName || seenCadetNames.has(normalizedCadetName)) {
       continue;
     }
 
-    seenDisplayNames.add(normalizedDisplayName);
+    seenCadetNames.add(normalizedCadetName);
 
-    const rankedName = [cadet.rank?.trim(), displayName].filter(Boolean).join(" ");
-    const exactKeys = new Set<string>(
-      [displayName, rankedName].map(normalizeName).filter(Boolean),
-    );
+    const exactKeys = new Set<string>(getCadetNameAliases(cadet).map(normalizeName).filter(Boolean));
     const searchKeys = Array.from(
-      new Set([displayName, rankedName].map(collapseName).filter(Boolean)),
+      new Set(getCadetNameAliases(cadet).map(collapseName).filter(Boolean)),
     );
 
     candidates.push({
       displayName,
-      tokens: new Set(normalizedDisplayName.split(" ").filter(Boolean)),
+      tokens: new Set(baseNames.flatMap((name) => name.split(" ").filter(Boolean))),
       exactKeys,
       searchKeys,
     });
@@ -219,6 +246,159 @@ function mapParsedNames(names: string[], mapper: (name: string) => string) {
   return dedupeStrings(names.map((name) => normalizeWhitespace(mapper(name))).filter(Boolean));
 }
 
+type ParsedCadetSequence = {
+  names: string[];
+  matchedCount: number;
+  matchedFragmentCount: number;
+};
+
+function choosePreferredCadetSequence(
+  current: ParsedCadetSequence | null,
+  candidate: ParsedCadetSequence,
+  expectedCount?: number,
+) {
+  if (!current) {
+    return candidate;
+  }
+
+  if (typeof expectedCount === "number" && Number.isFinite(expectedCount) && expectedCount > 0) {
+    const currentPenalty = Math.abs(current.names.length - expectedCount);
+    const candidatePenalty = Math.abs(candidate.names.length - expectedCount);
+
+    if (candidatePenalty !== currentPenalty) {
+      return candidatePenalty < currentPenalty ? candidate : current;
+    }
+  }
+
+  if (candidate.matchedCount !== current.matchedCount) {
+    return candidate.matchedCount > current.matchedCount ? candidate : current;
+  }
+
+  if (candidate.matchedFragmentCount !== current.matchedFragmentCount) {
+    return candidate.matchedFragmentCount > current.matchedFragmentCount ? candidate : current;
+  }
+
+  if (candidate.names.length !== current.names.length) {
+    return candidate.names.length < current.names.length ? candidate : current;
+  }
+
+  return candidate.names.join("\u0000") < current.names.join("\u0000") ? candidate : current;
+}
+
+function recoverCadetNamesFromCommaSeparatedList(
+  namesText: string,
+  candidates: CadetCandidate[],
+  expectedCount?: number,
+) {
+  const fragments = namesText
+    .split(",")
+    .map((name) => normalizeWhitespace(name))
+    .filter(Boolean);
+
+  if (fragments.length <= 1) {
+    return [];
+  }
+
+  const exactKeyToDisplayName = new Map<string, string>();
+
+  for (const candidate of candidates) {
+    for (const exactKey of candidate.exactKeys) {
+      if (!exactKeyToDisplayName.has(exactKey)) {
+        exactKeyToDisplayName.set(exactKey, candidate.displayName);
+      }
+    }
+  }
+
+  const memo = new Map<number, ParsedCadetSequence | null>();
+
+  function resolve(startIndex: number): ParsedCadetSequence | null {
+    if (startIndex >= fragments.length) {
+      return {
+        names: [],
+        matchedCount: 0,
+        matchedFragmentCount: 0,
+      };
+    }
+
+    if (memo.has(startIndex)) {
+      return memo.get(startIndex) ?? null;
+    }
+
+    let best: ParsedCadetSequence | null = null;
+
+    for (let endIndex = startIndex; endIndex < fragments.length; endIndex += 1) {
+      const remainder = resolve(endIndex + 1);
+
+      if (!remainder) {
+        continue;
+      }
+
+      const rawSegment = fragments.slice(startIndex, endIndex + 1).join(", ");
+      const matchedDisplayName = exactKeyToDisplayName.get(normalizeName(rawSegment));
+
+      if (matchedDisplayName) {
+        best = choosePreferredCadetSequence(
+          best,
+          {
+            names: [matchedDisplayName, ...remainder.names],
+            matchedCount: remainder.matchedCount + 1,
+            matchedFragmentCount: remainder.matchedFragmentCount + (endIndex - startIndex + 1),
+          },
+          expectedCount,
+        );
+      }
+
+      if (endIndex === startIndex) {
+        best = choosePreferredCadetSequence(
+          best,
+          {
+            names: [rawSegment, ...remainder.names],
+            matchedCount: remainder.matchedCount,
+            matchedFragmentCount: remainder.matchedFragmentCount,
+          },
+          expectedCount,
+        );
+      }
+    }
+
+    memo.set(startIndex, best);
+    return best;
+  }
+
+  const best = resolve(0);
+
+  if (!best || best.matchedCount === 0) {
+    return [];
+  }
+
+  return dedupeStrings(best.names.map((name) => normalizeWhitespace(name)).filter(Boolean));
+}
+
+function parseTroopMovementRemarkNamesWithCadets(
+  namesText: string,
+  candidates: CadetCandidate[],
+  expectedCount?: number,
+) {
+  const parsedNames = parseTroopMovementRemarkNames(namesText);
+
+  if (
+    parsedNames.length > 1 ||
+    !namesText.includes(",") ||
+    expectedCount === undefined ||
+    expectedCount <= 1
+  ) {
+    return parsedNames;
+  }
+
+  const recoveredNames = recoverCadetNamesFromCommaSeparatedList(
+    namesText,
+    candidates,
+    expectedCount,
+  );
+
+  return recoveredNames.length ? recoveredNames : parsedNames;
+}
+
 function parseTroopMovementStrengthMode(value: unknown): TroopMovementStrengthMode {
   return value === "SUBTRACT" || value === "SET" ? value : "MANUAL";
 }
@@ -246,16 +426,19 @@ export function createEmptyTroopMovementRemarkRow(): TroopMovementRemarkRow {
 }
 
 export function parseTroopMovementRemarkNames(namesText: string) {
-  return dedupeStrings(
-    namesText
-      .split(/[\n,;]+/)
-      .map((name) => normalizeWhitespace(name))
-      .filter(Boolean),
-  );
+  if (!namesText.trim()) {
+    return [];
+  }
+
+  if (hasExplicitRemarkNameSeparators(namesText)) {
+    return dedupeStrings(splitExplicitRemarkNameLines(namesText));
+  }
+
+  return dedupeStrings([normalizeWhitespace(namesText)].filter(Boolean));
 }
 
 export function formatTroopMovementRemarkNames(names: string[]) {
-  return dedupeStrings(names.map(normalizeWhitespace).filter(Boolean)).join(", ");
+  return dedupeStrings(names.map(normalizeWhitespace).filter(Boolean)).join("\n");
 }
 
 export function parseTroopMovementRemarkLines(lines: string[]) {
@@ -356,12 +539,17 @@ export function serializeTroopMovementDraft(input: TroopMovementDraftState) {
 
 export function resolveTroopMovementRemarkRowCount(row: TroopMovementRemarkRow) {
   const parsedNames = parseTroopMovementRemarkNames(row.namesText);
+  const manualCountText = row.countText.trim();
 
-  if (parsedNames.length) {
+  if (parsedNames.length > 1) {
     return String(parsedNames.length);
   }
 
-  return row.countText.trim();
+  if (parsedNames.length === 1 && (!manualCountText || hasExplicitRemarkNameSeparators(row.namesText))) {
+    return "1";
+  }
+
+  return manualCountText;
 }
 
 export function getTroopMovementRemarkCount(row: TroopMovementRemarkRow) {
@@ -386,14 +574,23 @@ export function autoCorrectTroopMovementRemarkRow(
   }
 
   const candidates = buildCadetCandidates(activeCadets);
-  const correctedNames = mapParsedNames(parseTroopMovementRemarkNames(row.namesText), (name) => {
-    return findNearestCadetName(name, candidates) ?? name;
-  });
+  const parsedCount = Number.parseInt(row.countText.trim(), 10);
+  const expectedCount = Number.isNaN(parsedCount) || parsedCount < 1 ? undefined : parsedCount;
+  const parsedNames = parseTroopMovementRemarkNamesWithCadets(
+    row.namesText,
+    candidates,
+    expectedCount,
+  );
+  const correctedNames = mapParsedNames(parsedNames, (name) => findNearestCadetName(name, candidates) ?? name);
+  const shouldNormalizeNames =
+    correctedNames.length > 1 || hasExplicitRemarkNameSeparators(row.namesText) || !row.countText.trim();
 
   return {
-    countText: correctedNames.length ? String(correctedNames.length) : row.countText.trim(),
+    countText: shouldNormalizeNames
+      ? String(correctedNames.length)
+      : resolveTroopMovementRemarkRowCount(row),
     group: row.group,
-    namesText: formatTroopMovementRemarkNames(correctedNames),
+    namesText: shouldNormalizeNames ? formatTroopMovementRemarkNames(correctedNames) : row.namesText,
   };
 }
 
@@ -402,7 +599,7 @@ export function formatTroopMovementRemarkRows(rows: TroopMovementRemarkRow[]) {
     .flatMap((row) => {
       const group = normalizeWhitespace(row.group);
       const names = parseTroopMovementRemarkNames(row.namesText);
-      const countText = names.length ? String(names.length) : row.countText.trim();
+      const countText = resolveTroopMovementRemarkRowCount(row);
 
       if (!group || STATUS_REMARK_PATTERN.test(`${countText || "0"}x ${group}`)) {
         return [];

@@ -20,8 +20,13 @@ import {
   type StrengthPeriod,
 } from "@/lib/date";
 import { WEEKLY_TODO_SYSTEM_KEYS } from "@/lib/announcement-config";
+import { getCadetPreferredName } from "@/lib/cadet-names";
 import { type BookInInput } from "@/lib/generators/book-in";
-import { resolveNightStudyAssignments, type NightStudyMode } from "@/lib/night-study";
+import {
+  formatNightStudyNamesText,
+  resolveNightStudyAssignments,
+  type NightStudyMode,
+} from "@/lib/night-study";
 import { buildParadeCaaLine, type ParadeStateInput } from "@/lib/generators/parade-state";
 import { renderTemplate } from "@/lib/formatting";
 import { prisma } from "@/lib/prisma";
@@ -37,16 +42,19 @@ import {
   LEGACY_DEFAULT_TEMPLATE_BODIES,
 } from "@/lib/templates";
 
+const sharedCadetSelect = {
+  id: true,
+  rank: true,
+  displayName: true,
+  shorthand: true,
+  active: true,
+  sortOrder: true,
+} satisfies Prisma.CadetSelect;
+
 type OperationalRecordWithCadet = Prisma.CadetRecordGetPayload<{
   include: {
     cadet: {
-      select: {
-        id: true;
-        rank: true;
-        displayName: true;
-        active: true;
-        sortOrder: true;
-      };
+      select: typeof sharedCadetSelect;
     };
   };
 }>;
@@ -54,13 +62,7 @@ type OperationalRecordWithCadet = Prisma.CadetRecordGetPayload<{
 type AppointmentWithCadet = Prisma.AppointmentGetPayload<{
   include: {
     cadet: {
-      select: {
-        id: true;
-        rank: true;
-        displayName: true;
-        active: true;
-        sortOrder: true;
-      };
+      select: typeof sharedCadetSelect;
     };
   };
 }>;
@@ -78,6 +80,15 @@ function sortCadets(cadets: Cadet[]) {
   return [...cadets].sort(
     (left, right) =>
       left.sortOrder - right.sortOrder || left.displayName.localeCompare(right.displayName),
+  );
+}
+
+function sortNightStudyCadets(cadets: Cadet[]) {
+  return [...cadets].sort(
+    (left, right) =>
+      left.sortOrder - right.sortOrder ||
+      getCadetPreferredName(left).localeCompare(getCadetPreferredName(right)) ||
+      left.displayName.localeCompare(right.displayName),
   );
 }
 
@@ -136,6 +147,16 @@ function sortBunks(bunks: Bunk[]) {
       left.bunkId.localeCompare(right.bunkId) ||
       left.createdAt.getTime() - right.createdAt.getTime(),
   );
+}
+
+function toPreferredCadetOption(cadet: Pick<Cadet, "id" | "rank" | "displayName" | "shorthand">) {
+  return {
+    id: cadet.id,
+    rank: cadet.rank,
+    displayName: getCadetPreferredName(cadet),
+    fullDisplayName: cadet.displayName,
+    shorthand: cadet.shorthand,
+  };
 }
 
 function buildTemplateMap(rows: MessageTemplate[]) {
@@ -288,7 +309,7 @@ function buildTroopMovementRemarkSuggestions(records: OperationalRecordWithCadet
     }
 
     const categoryCadets = groupedCadets.get(record.category) ?? new Map<string, string>();
-    categoryCadets.set(record.cadetId, record.cadet.displayName);
+    categoryCadets.set(record.cadetId, getCadetPreferredName(record.cadet));
     groupedCadets.set(record.category, categoryCadets);
   }
 
@@ -300,7 +321,10 @@ function buildTroopMovementRemarkSuggestions(records: OperationalRecordWithCadet
   return orderedCategories.map((category) => {
     const cadetNames = Array.from(groupedCadets.get(category)?.values() ?? []);
 
-    return `${cadetNames.length}x ${getTroopMovementCategoryLabel(category)}: ${cadetNames.join(", ")}`;
+    return {
+      group: getTroopMovementCategoryLabel(category),
+      names: cadetNames,
+    };
   });
 }
 
@@ -353,6 +377,21 @@ function getAppointmentStrengthCadetIds(
   );
 }
 
+function getNightStudyAutomaticOthersCadetIds(
+  operationalRecords: OperationalRecordWithCadet[],
+  appointments: AppointmentWithCadet[],
+  now = new Date(),
+) {
+  const recordCadetIds = new Set(
+    operationalRecords
+      .filter((record) => record.affectsStrength || record.countsNotInCamp)
+      .map((record) => record.cadetId),
+  );
+  const appointmentCadetIds = getAppointmentStrengthCadetIds(appointments, now, "Night");
+
+  return new Set([...recordCadetIds, ...appointmentCadetIds]);
+}
+
 function splitAppointmentsForParade(
   appointments: AppointmentWithCadet[],
   reportAt: Date,
@@ -400,13 +439,7 @@ async function getOperationalDataset(userId: string) {
       },
       include: {
         cadet: {
-          select: {
-            id: true,
-            rank: true,
-            displayName: true,
-            active: true,
-            sortOrder: true,
-          },
+          select: sharedCadetSelect,
         },
       },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
@@ -546,30 +579,55 @@ export async function getCadets(userId: string) {
   return cadets;
 }
 
+export async function getNightStudyCadetGroups(userId: string, now = new Date()) {
+  const { start, end } = getSingaporeDayBounds(now);
+  const [{ activeCadets, operationalRecords }, todayAppointments] = await Promise.all([
+    getOperationalDataset(userId),
+    getUpcomingAppointments(userId, start, end),
+  ]);
+  const automaticOthersCadetIds = getNightStudyAutomaticOthersCadetIds(
+    operationalRecords,
+    todayAppointments,
+    now,
+  );
+  const nightStudyCadets = sortNightStudyCadets(activeCadets).map(toPreferredCadetOption);
+
+  return {
+    activeCadets: nightStudyCadets,
+    automaticOthersNames: nightStudyCadets
+      .filter((cadet) => automaticOthersCadetIds.has(cadet.id))
+      .map((cadet) => cadet.displayName),
+  };
+}
+
 export async function buildNightStudyContext(userId: string) {
-  const [settings, activeCadets] = await Promise.all([
+  const [settings, cadetGroups] = await Promise.all([
     getUserSettings(userId),
-    getActiveCadets(userId),
+    getNightStudyCadetGroups(userId),
   ]);
   const mode =
     settings.nightStudyDraftMode === "GO_BACK_BUNK" ? "GO_BACK_BUNK" : "NIGHT_STUDY";
   const primaryNamesText = settings.nightStudyPrimaryNamesText ?? "";
   const earlyPartyNamesText = settings.nightStudyEarlyPartyNamesText ?? "";
-  const cadetOptions = activeCadets.map((cadet) => ({
-    rank: cadet.rank,
-    displayName: cadet.displayName,
-  }));
+  const otherNamesText =
+    settings.nightStudyOtherNamesText ?? formatNightStudyNamesText(cadetGroups.automaticOthersNames);
+  const cadetOptions = cadetGroups.activeCadets;
+  const automaticOthersNames = cadetGroups.automaticOthersNames;
 
   return {
     mode: mode as NightStudyMode,
     primaryNamesText,
     earlyPartyNamesText,
+    otherNamesText,
+    automaticOthersNames,
     activeCadets: cadetOptions,
     resolved: resolveNightStudyAssignments({
       mode,
       primaryNamesText,
       earlyPartyNamesText,
+      otherNamesText,
       activeCadets: cadetOptions,
+      automaticOthersNames,
     }),
   };
 }
@@ -586,13 +644,7 @@ export async function getOperationalRecords(userId: string) {
     },
     include: {
       cadet: {
-        select: {
-          id: true,
-          rank: true,
-          displayName: true,
-          active: true,
-          sortOrder: true,
-        },
+        select: sharedCadetSelect,
       },
     },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
@@ -608,13 +660,7 @@ export async function getAllRecords(userId: string) {
     where: { userId },
     include: {
       cadet: {
-        select: {
-          id: true,
-          rank: true,
-          displayName: true,
-          active: true,
-          sortOrder: true,
-        },
+        select: sharedCadetSelect,
       },
     },
     orderBy: [{ updatedAt: "desc" }],
@@ -633,13 +679,7 @@ export async function getRecordsNeedingConfirmation(userId: string) {
     },
     include: {
       cadet: {
-        select: {
-          id: true,
-          rank: true,
-          displayName: true,
-          active: true,
-          sortOrder: true,
-        },
+        select: sharedCadetSelect,
       },
     },
     orderBy: [{ endAt: "asc" }, { updatedAt: "asc" }],
@@ -660,13 +700,7 @@ export async function getUpcomingAppointments(userId: string, from: Date, to: Da
     },
     include: {
       cadet: {
-        select: {
-          id: true,
-          rank: true,
-          displayName: true,
-          active: true,
-          sortOrder: true,
-        },
+        select: sharedCadetSelect,
       },
     },
     orderBy: [{ appointmentAt: "asc" }],
@@ -686,13 +720,7 @@ async function getPendingAppointmentsFrom(userId: string, from: Date) {
     },
     include: {
       cadet: {
-        select: {
-          id: true,
-          rank: true,
-          displayName: true,
-          active: true,
-          sortOrder: true,
-        },
+        select: sharedCadetSelect,
       },
     },
     orderBy: [{ appointmentAt: "asc" }],
@@ -704,13 +732,7 @@ export async function getAppointments(userId: string) {
     where: { userId },
     include: {
       cadet: {
-        select: {
-          id: true,
-          rank: true,
-          displayName: true,
-          active: true,
-          sortOrder: true,
-        },
+        select: sharedCadetSelect,
       },
     },
     orderBy: [{ completed: "asc" }, { appointmentAt: "asc" }],
@@ -1026,9 +1048,6 @@ export async function buildTroopMovementContext(userId: string) {
     totalStrength: summary.totalStrength,
     suggestedStrengthText: `${summary.presentStrength}/${summary.totalStrength}`,
     remarkSuggestions: buildTroopMovementRemarkSuggestions(operationalRecords),
-    activeCadets: activeCadets.map((cadet) => ({
-      rank: cadet.rank,
-      displayName: cadet.displayName,
-    })),
+    activeCadets: activeCadets.map(toPreferredCadetOption),
   };
 }

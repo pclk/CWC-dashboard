@@ -1,286 +1,280 @@
 "use client";
 
-import { useState, useTransition, type DragEvent } from "react";
+import { useMemo, useState, useTransition } from "react";
 
 import { updateNightStudyDraftAction } from "@/actions/night-study";
+import { NightStudyBoardHeader } from "@/components/night-study/night-study-board-header";
+import { NightStudyGroupSummary } from "@/components/night-study/night-study-group-summary";
+import { NightStudyMobileSummaryBar } from "@/components/night-study/night-study-mobile-summary-bar";
+import { NightStudyRosterList } from "@/components/night-study/night-study-roster-list";
 import {
-  formatNightStudyNamesText,
+  assignManyNightStudyPeople,
+  assignNightStudyPerson,
+  buildNightStudyRosterPeople,
+  buildNightStudySummaryText,
+  filterNightStudyRosterPeople,
+  getNightStudyGroupCounts,
+  getNightStudyGroupMeta,
+  loadNightStudyOthersFromAutomaticSources,
+  resetNightStudyRosterPeople,
   resolveNightStudyAssignments,
+  serializeNightStudyRosterPeople,
+  type NightStudyCadet,
+  type NightStudyFilter,
+  type NightStudyAssignmentGroup,
   type NightStudyMode,
+  type NightStudyRosterPerson,
 } from "@/lib/night-study";
-
-type ActiveCadetOption = {
-  rank?: string | null;
-  displayName: string;
-};
-
-type AssignmentColumnKey = "primary" | "early" | "computed";
-
-function formatPillGroupPlaceholder(column: AssignmentColumnKey) {
-  if (column === "early") {
-    return "Drop personnel here for Early party.";
-  }
-
-  if (column === "computed") {
-    return "Drop personnel here to move them back into the computed group.";
-  }
-
-  return "Drop personnel here.";
-}
 
 export function NightStudyManager({
   activeCadets,
+  automaticOthersNames,
   initialMode,
   initialPrimaryNamesText,
   initialEarlyPartyNamesText,
+  initialOtherNamesText,
 }: {
-  activeCadets: ActiveCadetOption[];
+  activeCadets: NightStudyCadet[];
+  automaticOthersNames: string[];
   initialMode: NightStudyMode;
   initialPrimaryNamesText: string;
   initialEarlyPartyNamesText: string;
+  initialOtherNamesText: string;
 }) {
+  const initialResolved = useMemo(
+    () =>
+      resolveNightStudyAssignments({
+        mode: initialMode,
+        primaryNamesText: initialPrimaryNamesText,
+        earlyPartyNamesText: initialEarlyPartyNamesText,
+        otherNamesText: initialOtherNamesText,
+        activeCadets,
+        automaticOthersNames,
+      }),
+    [
+      activeCadets,
+      automaticOthersNames,
+      initialEarlyPartyNamesText,
+      initialMode,
+      initialOtherNamesText,
+      initialPrimaryNamesText,
+    ],
+  );
   const [mode, setMode] = useState<NightStudyMode>(initialMode);
-  const [primaryNamesText, setPrimaryNamesText] = useState(initialPrimaryNamesText);
-  const [earlyPartyNamesText, setEarlyPartyNamesText] = useState(initialEarlyPartyNamesText);
+  const [people, setPeople] = useState<NightStudyRosterPerson[]>(() =>
+    buildNightStudyRosterPeople({
+      activeCadets,
+      primaryNames: initialResolved.primaryNames,
+      earlyPartyNames: initialResolved.earlyPartyNames,
+      othersNames: initialResolved.othersNames,
+    }),
+  );
+  const [search, setSearch] = useState("");
+  const [filterGroup, setFilterGroup] = useState<NightStudyFilter>("all");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkMode, setBulkMode] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const [draggedName, setDraggedName] = useState<string | null>(null);
-  const [dragTarget, setDragTarget] = useState<AssignmentColumnKey | null>(null);
+  const [copied, setCopied] = useState(false);
   const [pending, startTransition] = useTransition();
-  const resolved = resolveNightStudyAssignments({
-    mode,
-    primaryNamesText,
-    earlyPartyNamesText,
-    activeCadets,
-  });
-  const computedNames =
-    resolved.computedLabel === "Night study" ? resolved.nightStudyNames : resolved.goBackBunkNames;
 
-  function persistResolvedAssignments(nextPrimaryNames: string[], nextEarlyPartyNames: string[]) {
-    setPrimaryNamesText(formatNightStudyNamesText(nextPrimaryNames));
-    setEarlyPartyNamesText(formatNightStudyNamesText(nextEarlyPartyNames));
+  const groups = useMemo(() => getNightStudyGroupMeta(mode), [mode]);
+  const groupCounts = useMemo(() => getNightStudyGroupCounts(people), [people]);
+  const filteredPeople = useMemo(
+    () => filterNightStudyRosterPeople(people, search, filterGroup),
+    [filterGroup, people, search],
+  );
+  const serializedAssignments = useMemo(() => serializeNightStudyRosterPeople(people), [people]);
+  const currentSnapshot = useMemo(
+    () =>
+      JSON.stringify({
+        mode,
+        primaryNamesText: serializedAssignments.primaryNamesText,
+        earlyPartyNamesText: serializedAssignments.earlyPartyNamesText,
+        otherNamesText: serializedAssignments.otherNamesText,
+      }),
+    [
+      mode,
+      serializedAssignments.earlyPartyNamesText,
+      serializedAssignments.otherNamesText,
+      serializedAssignments.primaryNamesText,
+    ],
+  );
+  const [savedSnapshot, setSavedSnapshot] = useState(currentSnapshot);
+  const isDirty = currentSnapshot !== savedSnapshot;
+  const editableGroups = groups;
+
+  function clearTransientStatus() {
+    setStatus(null);
   }
 
-  function moveNameToColumn(name: string, column: AssignmentColumnKey) {
-    const nextPrimaryNames = resolved.primaryNames.filter((currentName) => currentName !== name);
-    const nextEarlyPartyNames = resolved.earlyPartyNames.filter((currentName) => currentName !== name);
-
-    if (column === "primary") {
-      nextPrimaryNames.push(name);
-    }
-
-    if (column === "early") {
-      nextEarlyPartyNames.push(name);
-    }
-
-    persistResolvedAssignments(nextPrimaryNames, nextEarlyPartyNames);
-    setDraggedName(null);
-    setDragTarget(null);
+  function handleAssign(personId: string, group: NightStudyAssignmentGroup) {
+    setPeople((currentPeople) => assignNightStudyPerson(currentPeople, personId, group));
+    clearTransientStatus();
   }
 
-  function handleDragStart(event: DragEvent<HTMLButtonElement>, name: string) {
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", name);
-    setDraggedName(name);
+  function handleSelectedChange(personId: string, nextSelected: boolean) {
+    setSelectedIds((currentSelectedIds) => {
+      if (nextSelected) {
+        return currentSelectedIds.includes(personId)
+          ? currentSelectedIds
+          : [...currentSelectedIds, personId];
+      }
+
+      return currentSelectedIds.filter((currentId) => currentId !== personId);
+    });
   }
 
-  function handleDragEnd() {
-    setDraggedName(null);
-    setDragTarget(null);
-  }
-
-  function handleDrop(event: DragEvent<HTMLDivElement>, column: AssignmentColumnKey) {
-    event.preventDefault();
-    const droppedName = draggedName ?? event.dataTransfer.getData("text/plain");
-
-    if (!droppedName) {
-      setDragTarget(null);
+  function assignSelectedToGroup(group: NightStudyAssignmentGroup) {
+    if (!selectedIds.length) {
       return;
     }
 
-    moveNameToColumn(droppedName, column);
+    setPeople((currentPeople) => assignManyNightStudyPeople(currentPeople, selectedIds, group));
+    setSelectedIds([]);
+    clearTransientStatus();
   }
 
-  function renderDraggablePills(names: string[]) {
-    if (!names.length) {
-      return null;
+  function handleToggleBulkMode() {
+    setBulkMode((currentBulkMode) => {
+      const nextBulkMode = !currentBulkMode;
+
+      if (!nextBulkMode) {
+        setSelectedIds([]);
+      }
+
+      return nextBulkMode;
+    });
+  }
+
+  function handleReset() {
+    if (!window.confirm("Clear all manual Night Study and Early party assignments?")) {
+      return;
     }
 
-    return names.map((name) => (
-      <button
-        key={name}
-        type="button"
-        draggable
-        onDragStart={(event) => handleDragStart(event, name)}
-        onDragEnd={handleDragEnd}
-        className={`rounded-full border px-3 py-1 text-sm transition ${
-          draggedName === name
-            ? "border-teal-400 bg-teal-50 text-teal-800"
-            : "border-black/10 bg-white text-slate-700 hover:bg-slate-100"
-        }`}
-      >
-        {name}
-      </button>
-    ));
+    setPeople((currentPeople) => resetNightStudyRosterPeople(currentPeople, automaticOthersNames));
+    setSelectedIds([]);
+    clearTransientStatus();
   }
 
-  function renderDropZone(column: AssignmentColumnKey, names: string[]) {
-    const activeDropTarget = dragTarget === column;
+  async function handleCopySummary() {
+    try {
+      await navigator.clipboard.writeText(buildNightStudySummaryText({ people, mode }));
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setStatus("Unable to copy summary.");
+    }
+  }
 
-    return (
-      <div
-        onDragOver={(event) => {
-          event.preventDefault();
-          setDragTarget(column);
-        }}
-        onDragEnter={(event) => {
-          event.preventDefault();
-          setDragTarget(column);
-        }}
-        onDragLeave={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-            setDragTarget((current) => (current === column ? null : current));
-          }
-        }}
-        onDrop={(event) => handleDrop(event, column)}
-        className={`min-h-28 rounded-[1.5rem] border border-dashed px-4 py-4 transition ${
-          activeDropTarget
-            ? "border-teal-600 bg-teal-50"
-            : "border-black/10 bg-slate-50/80"
-        }`}
-      >
-        <div className="flex flex-wrap gap-2">
-          {names.length ? (
-            renderDraggablePills(names)
-          ) : (
-            <p className="text-sm text-slate-500">{formatPillGroupPlaceholder(column)}</p>
-          )}
-        </div>
-      </div>
+  function handleLoadAutomaticOthers() {
+    setPeople((currentPeople) =>
+      loadNightStudyOthersFromAutomaticSources(currentPeople, automaticOthersNames),
     );
+    setSelectedIds([]);
+    setStatus("Others loaded from records and evening appointments.");
+  }
+
+  function handleSave() {
+    startTransition(async () => {
+      const result = await updateNightStudyDraftAction({
+        mode,
+        primaryNamesText: serializedAssignments.primaryNamesText,
+        earlyPartyNamesText: serializedAssignments.earlyPartyNamesText,
+        otherNamesText: serializedAssignments.otherNamesText,
+      });
+
+      if (result.ok) {
+        setSavedSnapshot(currentSnapshot);
+      }
+
+      setStatus(result.ok ? result.message ?? "Saved." : result.error ?? "Unable to save.");
+    });
   }
 
   return (
     <div className="space-y-4">
-      <section className="rounded-[2rem] border border-black/10 bg-white/90 p-5 shadow-sm">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Night Study</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Set either the Night study group or the Go back bunk group, optionally set Early party,
-          and the remaining active cadets are assigned automatically.
-        </p>
-      </section>
+      <NightStudyBoardHeader
+        mode={mode}
+        search={search}
+        filterGroup={filterGroup}
+        groups={groups}
+        bulkMode={bulkMode}
+        pending={pending}
+        copied={copied}
+        isDirty={isDirty}
+        status={status}
+        onModeChange={(nextMode) => {
+          setMode(nextMode);
+          clearTransientStatus();
+        }}
+        onSearchChange={setSearch}
+        onFilterChange={setFilterGroup}
+        onToggleBulkMode={handleToggleBulkMode}
+        onCopySummary={handleCopySummary}
+        onLoadAutomaticOthers={handleLoadAutomaticOthers}
+        onReset={handleReset}
+        onSave={handleSave}
+      />
 
-      <section className="rounded-[2rem] border border-black/10 bg-white/95 p-5 shadow-sm">
-        <div className="space-y-3">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">
-            Assignment Mode
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setMode("NIGHT_STUDY")}
-              className={`rounded-2xl px-4 py-3 text-sm font-semibold transition ${
-                mode === "NIGHT_STUDY"
-                  ? "bg-teal-700 text-white"
-                  : "border border-black/10 text-slate-700 hover:bg-slate-100"
-              }`}
-            >
-              I set Night study
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("GO_BACK_BUNK")}
-              className={`rounded-2xl px-4 py-3 text-sm font-semibold transition ${
-                mode === "GO_BACK_BUNK"
-                  ? "bg-teal-700 text-white"
-                  : "border border-black/10 text-slate-700 hover:bg-slate-100"
-              }`}
-            >
-              I set Go back bunk
-            </button>
+      <NightStudyMobileSummaryBar
+        groups={groups}
+        counts={groupCounts}
+        activeFilter={filterGroup}
+        onFilterChange={setFilterGroup}
+      />
+
+      {bulkMode && selectedIds.length ? (
+        <section className="rounded-[1.5rem] border border-teal-200 bg-teal-50 px-4 py-4 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <p className="text-sm font-semibold text-teal-900">
+              {selectedIds.length} cadet{selectedIds.length === 1 ? "" : "s"} selected
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {editableGroups.map((group) => (
+                <button
+                  key={group.id}
+                  type="button"
+                  onClick={() => assignSelectedToGroup(group.id)}
+                  className="rounded-2xl bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800"
+                >
+                  Move to {group.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setSelectedIds([])}
+                className="rounded-2xl border border-teal-200 px-4 py-2 text-sm font-semibold text-teal-900 transition hover:bg-white/80"
+              >
+                Clear selection
+              </button>
+            </div>
           </div>
-        </div>
+        </section>
+      ) : null}
 
-        <div className="mt-5 grid gap-4 xl:grid-cols-3">
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">
-              {resolved.primaryLabel} ({resolved.primaryNames.length})
-            </label>
-            {renderDropZone("primary", resolved.primaryNames)}
-            <textarea
-              rows={10}
-              value={primaryNamesText}
-              onChange={(event) => setPrimaryNamesText(event.target.value)}
-              placeholder="One name per line"
-              className="w-full rounded-[1.5rem] border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-            />
-          </div>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <main className="space-y-4">
+          <NightStudyRosterList
+            people={filteredPeople}
+            totalCount={people.length}
+            groups={groups}
+            bulkMode={bulkMode}
+            selectedIds={selectedIds}
+            activeFilter={filterGroup}
+            onClearFilter={() => setFilterGroup("all")}
+            onSelectedChange={handleSelectedChange}
+            onAssign={handleAssign}
+          />
+        </main>
 
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">
-              Early party ({resolved.earlyPartyNames.length})
-            </label>
-            {renderDropZone("early", resolved.earlyPartyNames)}
-            <textarea
-              rows={10}
-              value={earlyPartyNamesText}
-              onChange={(event) => setEarlyPartyNamesText(event.target.value)}
-              placeholder="One name per line"
-              className="w-full rounded-[1.5rem] border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">
-              {resolved.computedLabel} ({computedNames.length})
-            </label>
-            {renderDropZone("computed", computedNames)}
-            <textarea
-              rows={10}
-              value={formatNightStudyNamesText(computedNames)}
-              readOnly
-              className="w-full rounded-[1.5rem] border border-black/10 bg-slate-50 px-4 py-3 text-slate-700 outline-none"
-            />
-          </div>
-        </div>
-
-        <p className="mt-4 text-xs text-slate-500">
-          Use one active cadet per line. Exact display names are accepted, and ranked names like
-          `ME4T John Tan` are also recognized. You can also drag pills between columns.
-        </p>
-
-        {resolved.errors.length ? (
-          <div className="mt-4 space-y-2 rounded-[1.5rem] bg-amber-50 px-4 py-4 text-sm text-amber-800">
-            {resolved.errors.map((error) => (
-              <p key={error}>{error}</p>
-            ))}
-          </div>
-        ) : null}
-
-        {status ? (
-          <p className="mt-4 rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-700">{status}</p>
-        ) : null}
-
-        <div className="mt-5 flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={pending || resolved.errors.length > 0}
-            onClick={() => {
-              startTransition(async () => {
-                const result = await updateNightStudyDraftAction({
-                  mode,
-                  primaryNamesText,
-                  earlyPartyNamesText,
-                });
-
-                setStatus(result.ok ? result.message ?? "Saved." : result.error ?? "Unable to save.");
-              });
-            }}
-            className="rounded-2xl bg-teal-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
-          >
-            {pending ? "Saving..." : "Save Night Study"}
-          </button>
-        </div>
-      </section>
+        <NightStudyGroupSummary
+          groups={groups}
+          counts={groupCounts}
+          activeFilter={filterGroup}
+          totalCount={people.length}
+          onFilterChange={setFilterGroup}
+        />
+      </div>
     </div>
   );
 }
