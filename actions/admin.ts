@@ -4,6 +4,12 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 
 import { failure, success, type ActionResult } from "@/actions/helpers";
+import {
+  clearAdminSession,
+  createAdminSession,
+  getAdminSession,
+  isValidAdminPassword,
+} from "@/lib/admin-auth";
 import { formatDisplayDateTime, getSingaporeDayBounds, getSingaporeStrengthPeriod } from "@/lib/date";
 import {
   buildParadeStateInput,
@@ -15,8 +21,6 @@ import {
 } from "@/lib/db";
 import { prisma } from "@/lib/prisma";
 import { adminChangePasswordSchema, adminDashboardLoginSchema } from "@/lib/validators/auth";
-
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "The0GCWCizM@tthew";
 
 type AdminPerson = {
   label: string;
@@ -77,7 +81,7 @@ export type AdminOverviewResult = ActionResult & {
 };
 
 async function authenticateAdmin(email: string, adminPassword: string) {
-  if (adminPassword !== ADMIN_PASSWORD) {
+  if (!isValidAdminPassword(adminPassword)) {
     return null;
   }
 
@@ -418,11 +422,35 @@ export async function adminDashboardLoginAction(input: {
     return failure("Invalid admin credentials.");
   }
 
+  await createAdminSession(user);
+  revalidatePath("/admin");
+
   return {
     ok: true,
     message: "Admin login successful.",
     overview: await buildAdminOverview(user),
   };
+}
+
+export async function adminDashboardLogoutAction(): Promise<ActionResult> {
+  await clearAdminSession();
+  revalidatePath("/admin");
+
+  return success("Signed out.");
+}
+
+export async function getCurrentAdminOverview() {
+  const session = await getAdminSession();
+
+  if (!session) {
+    return null;
+  }
+
+  return buildAdminOverview({
+    id: session.userId,
+    email: session.email,
+    displayName: session.displayName,
+  });
 }
 
 export async function changeUserPasswordAsAdminAction(input: {
@@ -437,9 +465,13 @@ export async function changeUserPasswordAsAdminAction(input: {
     return failure(parsed.error.issues[0]?.message ?? "Invalid admin payload.");
   }
 
-  const user = await authenticateAdmin(parsed.data.email, parsed.data.adminPassword);
+  const session = await getAdminSession();
 
-  if (!user) {
+  if (!session || session.email !== parsed.data.email) {
+    return failure("Admin session expired. Sign in again.");
+  }
+
+  if (!isValidAdminPassword(parsed.data.adminPassword)) {
     return failure("Invalid admin credentials.");
   }
 
@@ -448,12 +480,12 @@ export async function changeUserPasswordAsAdminAction(input: {
 
   const [, revokedSessions] = await prisma.$transaction([
     prisma.user.update({
-      where: { id: user.id },
+      where: { id: session.userId },
       data: { passwordHash },
     }),
     prisma.userSession.updateMany({
       where: {
-        userId: user.id,
+        userId: session.userId,
         revokedAt: null,
       },
       data: {
