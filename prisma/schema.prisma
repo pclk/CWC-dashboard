@@ -41,6 +41,7 @@ model UserSession {
   deviceLabel   String    @default("Unknown device")
   signedInAt    DateTime  @default(now())
   lastSeenAt    DateTime  @default(now())
+  adminElevatedAt DateTime?
   revokedAt     DateTime?
   revokedReason String?
   createdAt     DateTime  @default(now())
