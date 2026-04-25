@@ -19,8 +19,9 @@ export const setupSchema = z
     path: ["confirmPassword"],
   });
 
-export const changePasswordWithAdminSchema = z
+export const adminChangePasswordSchema = z
   .object({
+    email: emailSchema,
     adminPassword: z.string().min(1, "Admin password is required."),
     newPassword: z.string(),
     confirmPassword: z.string(),
@@ -29,3 +30,8 @@ export const changePasswordWithAdminSchema = z
     message: "Passwords do not match.",
     path: ["confirmPassword"],
   });
+
+export const adminDashboardLoginSchema = z.object({
+  email: emailSchema,
+  adminPassword: z.string().min(1, "Admin password is required."),
+});
