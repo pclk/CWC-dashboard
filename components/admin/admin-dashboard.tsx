@@ -289,6 +289,8 @@ function EventTimeline({ events }: { events: AdminOverview["timeline"] }) {
   const TOP_PAD_PX = 56;
   const BOTTOM_PAD_PX = 32;
   const MIN_BAR_HEIGHT_PX = 112;
+  const TIME_AXIS_WIDTH_PX = 112;
+  const MIN_EVENT_CARD_WIDTH_PX = 180;
 
   const layoutEvents = events.map((event) => {
     const startMs = new Date(event.startAt).getTime();
@@ -358,6 +360,9 @@ function EventTimeline({ events }: { events: AdminOverview["timeline"] }) {
   }
 
   const numColumns = Math.max(columns.length, 1);
+  const timelineWidth = `max(100%, ${
+    TIME_AXIS_WIDTH_PX + numColumns * MIN_EVENT_CARD_WIDTH_PX
+  }px)`;
 
   const boundaryMarkers = axisBoundaries.map((ms, index) => {
     const date = new Date(ms);
@@ -397,9 +402,9 @@ function EventTimeline({ events }: { events: AdminOverview["timeline"] }) {
         </div>
       </div>
 
-      <div className="mt-4 max-h-[640px] overflow-y-auto rounded-2xl border border-black/10 bg-white">
-        <div className="relative flex" style={{ height: totalHeight }}>
-          <div className="relative w-28 shrink-0 border-r border-black/10 bg-slate-50/60">
+      <div className="mt-4 max-h-[640px] overflow-x-auto overflow-y-auto rounded-2xl border border-black/10 bg-white">
+        <div className="relative flex min-w-0" style={{ height: totalHeight, width: timelineWidth }}>
+          <div className="sticky left-0 z-20 w-28 shrink-0 border-r border-black/10 bg-slate-50 shadow-[2px_0_0_rgba(15,23,42,0.04)]">
             {boundaryMarkers.map((marker) => (
               <div
                 key={marker.ms}
@@ -442,7 +447,7 @@ function EventTimeline({ events }: { events: AdminOverview["timeline"] }) {
               return (
                 <article
                   key={event.id}
-                  className={`absolute flex flex-col gap-1 overflow-hidden rounded-xl border p-2 text-xs shadow-sm ${styles.card}`}
+                  className={`absolute rounded-xl border text-xs shadow-sm ${styles.card}`}
                   style={{
                     top: topPx,
                     height: heightPx,
@@ -451,23 +456,25 @@ function EventTimeline({ events }: { events: AdminOverview["timeline"] }) {
                   }}
                   title={`${event.cadetLabel} / ${event.title}${showRange ? ` / ${event.startLabel} → ${event.endLabel}` : ` / ${event.startLabel}`}`}
                 >
-                  <div className="flex items-center gap-1">
-                    <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${styles.badge}`}
-                    >
-                      {event.typeLabel}
-                    </span>
+                  <div className="sticky top-2 z-10 flex flex-col gap-1 overflow-hidden p-2">
+                    <div className="flex items-center gap-1">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${styles.badge}`}
+                      >
+                        {event.typeLabel}
+                      </span>
+                    </div>
+                    <p className="truncate text-sm font-semibold text-slate-900">
+                      {event.cadetLabel}
+                    </p>
+                    <p className="line-clamp-2 text-[11px] text-slate-700">{event.title}</p>
+                    {event.subtitle ? (
+                      <p className="line-clamp-1 text-[11px] text-slate-600">{event.subtitle}</p>
+                    ) : null}
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                      {showRange ? `${event.startLabel} → ${event.endLabel}` : event.startLabel}
+                    </p>
                   </div>
-                  <p className="truncate text-sm font-semibold text-slate-900">
-                    {event.cadetLabel}
-                  </p>
-                  <p className="line-clamp-2 text-[11px] text-slate-700">{event.title}</p>
-                  {event.subtitle ? (
-                    <p className="line-clamp-1 text-[11px] text-slate-600">{event.subtitle}</p>
-                  ) : null}
-                  <p className="mt-auto text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                    {showRange ? `${event.startLabel} → ${event.endLabel}` : event.startLabel}
-                  </p>
                 </article>
               );
             })}
