@@ -7,7 +7,9 @@ export type SessionDeviceMetadata = {
   deviceLabel: string;
 };
 
-function extractClientIp(headers: Headers) {
+type SessionHeaders = Pick<Headers, "get">;
+
+function extractClientIp(headers: SessionHeaders) {
   const forwardedFor = headers.get("x-forwarded-for");
   const firstForwardedIp = forwardedFor
     ?.split(",")
@@ -105,13 +107,15 @@ function detectDeviceType(userAgent: string) {
   return "unknown";
 }
 
-export function getSessionDeviceMetadata(request: Request): SessionDeviceMetadata {
-  const userAgent = request.headers.get("user-agent");
+export function getSessionDeviceMetadataFromHeaders(
+  headers: SessionHeaders,
+): SessionDeviceMetadata {
+  const userAgent = headers.get("user-agent");
 
   if (!userAgent) {
     return {
       userAgent: null,
-      ipAddress: extractClientIp(request.headers),
+      ipAddress: extractClientIp(headers),
       browser: "Unknown browser",
       os: "Unknown OS",
       deviceType: "unknown",
@@ -125,10 +129,14 @@ export function getSessionDeviceMetadata(request: Request): SessionDeviceMetadat
 
   return {
     userAgent,
-    ipAddress: extractClientIp(request.headers),
+    ipAddress: extractClientIp(headers),
     browser,
     os,
     deviceType,
     deviceLabel: `${browser} on ${os}`,
   };
+}
+
+export function getSessionDeviceMetadata(request: Request): SessionDeviceMetadata {
+  return getSessionDeviceMetadataFromHeaders(request.headers);
 }

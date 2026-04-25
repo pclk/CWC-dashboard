@@ -1,17 +1,30 @@
+import { ActivityTimeline } from "@/components/dashboard/activity-timeline";
 import { DueConfirmationList } from "@/components/dashboard/due-confirmation-list";
 import { NextActions } from "@/components/dashboard/next-actions";
-import { StatCard } from "@/components/dashboard/stat-card";
+import { StrengthPieChart } from "@/components/dashboard/strength-pie-chart";
 import { TodayAppointments } from "@/components/dashboard/today-appointments";
 import { WeeklyTodoList } from "@/components/dashboard/weekly-todo-list";
 import { DEFAULT_ANNOUNCEMENT_TIMES, WEEKLY_TODO_SYSTEM_KEYS } from "@/lib/announcement-config";
 import { renderWithDatabaseWakeupFallback } from "@/lib/database-wakeup";
-import { formatCompactDmy, getSingaporeWeekBounds, parseSingaporeInputToUtc } from "@/lib/date";
+import {
+  formatCompactDmy,
+  getSingaporeDayBounds,
+  getSingaporeWeekBounds,
+  parseSingaporeInputToUtc,
+} from "@/lib/date";
 import { buildDashboardNextActions } from "@/lib/dashboard-next-actions";
+import {
+  buildDashboardStrengthBuckets,
+  buildDashboardTimeline,
+} from "@/lib/dashboard-insights";
 import {
   buildParadeStateInput,
   getCurrentAffairSharingsForDay,
   getCurrentAffairSharingsForWeek,
-  getDashboardData,
+  getActiveCadets,
+  getOperationalRecords,
+  getRecordsNeedingConfirmation,
+  getUpcomingAppointments,
   getSettingsAndTemplates,
   getWeeklyTodos,
 } from "@/lib/db";
@@ -28,16 +41,22 @@ export default async function DashboardPage() {
     const nightReportAt =
       parseSingaporeInputToUtc(`${today} ${DEFAULT_ANNOUNCEMENT_TIMES.PARADE_STATE_NIGHT}`) ?? now;
     const { start: weekStart } = getSingaporeWeekBounds(now);
+    const todayBounds = getSingaporeDayBounds(now);
     const [
-      { summary, dueConfirmations, todayAppointments },
+      dueConfirmations,
+      todayAppointments,
       settingsBundle,
       morningParadeInput,
       nightParadeInput,
+      currentParadeInput,
       weeklyTodos,
       currentAffairWeek,
       currentAffairToday,
+      activeCadets,
+      operationalRecords,
     ] = await Promise.all([
-      getDashboardData(userId),
+      getRecordsNeedingConfirmation(userId),
+      getUpcomingAppointments(userId, todayBounds.start, todayBounds.end),
       getSettingsAndTemplates(userId),
       buildParadeStateInput(userId, {
         reportType: "Morning",
@@ -47,9 +66,15 @@ export default async function DashboardPage() {
         reportType: "Night",
         reportAt: nightReportAt,
       }),
+      buildParadeStateInput(userId, {
+        reportType: "Custom",
+        reportAt: now,
+      }),
       getWeeklyTodos(userId),
       getCurrentAffairSharingsForWeek(userId, now),
       getCurrentAffairSharingsForDay(userId, now),
+      getActiveCadets(userId),
+      getOperationalRecords(userId),
     ]);
     const weeklyTodoItems = weeklyTodos.map((todo) => {
       const isCurrentWeekComplete = todo.completedWeekStart?.getTime() === weekStart.getTime();
@@ -78,6 +103,18 @@ export default async function DashboardPage() {
       hasCurrentAffairToday: currentAffairToday.length > 0,
       currentAffairWeekEntries: currentAffairWeek,
     });
+    const strengthBuckets = buildDashboardStrengthBuckets({
+      activeCadets,
+      operationalRecords,
+      todayAppointments,
+      now,
+    });
+    const timelineEvents = buildDashboardTimeline({
+      activeCadets,
+      operationalRecords,
+      upcomingAppointments: currentParadeInput.upcomingAppointments,
+      now,
+    });
 
     return (
       <div className="space-y-6">
@@ -94,10 +131,7 @@ export default async function DashboardPage() {
           </p>
         </section>
 
-        <section className="grid gap-3 sm:grid-cols-2">
-          <StatCard label="Strength" value={`${summary.presentStrength}/${summary.totalStrength}`} />
-          <StatCard label="Needs Confirmation" value={`${dueConfirmations.length}`} />
-        </section>
+        <StrengthPieChart buckets={strengthBuckets} />
 
         <section className="grid gap-4 lg:grid-cols-2">
           <DueConfirmationList records={dueConfirmations} />
@@ -108,6 +142,8 @@ export default async function DashboardPage() {
           <NextActions currentTime={nextActions.currentTime} actions={nextActions.actions} />
           <WeeklyTodoList items={weeklyTodoItems} />
         </section>
+
+        <ActivityTimeline events={timelineEvents} />
       </div>
     );
   });

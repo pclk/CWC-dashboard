@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 
 import {
   adminDashboardLoginAction,
+  adminDashboardLogoutAction,
   changeUserPasswordAsAdminAction,
   type AdminOverview,
 } from "@/actions/admin";
@@ -707,15 +708,17 @@ function ChangeCwcPasswordSection({
   );
 }
 
-export function AdminDashboard() {
+export function AdminDashboard({ initialOverview = null }: { initialOverview?: AdminOverview | null }) {
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState<string | null>(null);
-  const [overview, setOverview] = useState<AdminOverview | null>(null);
+  const [overview, setOverview] = useState<AdminOverview | null>(initialOverview);
   const [activeSection, setActiveSection] = useState<AdminSection>("dashboard");
   const [activeStrengthBucketKey, setActiveStrengthBucketKey] =
-    useState<AdminOverview["strengthBuckets"][number]["key"]>("current_fit");
+    useState<AdminOverview["strengthBuckets"][number]["key"]>(
+      initialOverview?.strengthBuckets.find((bucket) => bucket.count > 0)?.key ?? "current_fit",
+    );
   const [loginValues, setLoginValues] = useState({
-    email: "",
+    email: initialOverview?.account.email ?? "",
     adminPassword: "",
   });
   const [passwordValues, setPasswordValues] = useState({
@@ -843,15 +846,18 @@ export function AdminDashboard() {
   const accountLabel = overview.account.displayName || overview.account.email;
 
   const handleAdminSignOut = () => {
-    setOverview(null);
-    setStatus(null);
-    setPasswordValues({
-      adminPassword: "",
-      newPassword: "",
-      confirmPassword: "",
+    startTransition(async () => {
+      await adminDashboardLogoutAction();
+      setOverview(null);
+      setStatus(null);
+      setPasswordValues({
+        adminPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+      setActiveStrengthBucketKey("current_fit");
+      setActiveSection("dashboard");
     });
-    setActiveStrengthBucketKey("current_fit");
-    setActiveSection("dashboard");
   };
 
   const handlePasswordSubmit = () => {

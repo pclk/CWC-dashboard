@@ -19,6 +19,8 @@ Create `.env` from `.env.example` and provide:
 - `DATABASE_URL`
 - `DATABASE_URL_UNPOOLED`
 - `AUTH_SECRET`
+- `ADMIN_PASSWORD`
+- `ADMIN_AUTH_SECRET` (optional; falls back to `AUTH_SECRET`)
 
 ## Local Setup
 
