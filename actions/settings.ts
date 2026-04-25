@@ -1,17 +1,13 @@
 "use server";
 
 import { TemplateType } from "@prisma/client";
-import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 
 import { failure, success, type ActionResult } from "@/actions/helpers";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { DEFAULT_TEMPLATE_BODIES } from "@/lib/templates";
-import { changePasswordWithAdminSchema } from "@/lib/validators/auth";
 import { messageTemplateSchema, userSettingsSchema } from "@/lib/validators/template";
-
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "The0GCWCizM@tthew";
 
 function resolveSynchronizedTemplateTypes(type: TemplateType) {
   if (type === TemplateType.PARADE_MORNING || type === TemplateType.PARADE_NIGHT) {
@@ -177,31 +173,4 @@ export async function resetMessageTemplateAction(
   revalidatePath("/current-affairs");
   revalidatePath("/book-in");
   return success("Template reset to default.");
-}
-
-export async function changePasswordWithAdminAction(input: {
-  adminPassword: string;
-  newPassword: string;
-  confirmPassword: string;
-}): Promise<ActionResult> {
-  const userId = await requireUser();
-  const parsed = changePasswordWithAdminSchema.safeParse(input);
-
-  if (!parsed.success) {
-    return failure(parsed.error.issues[0]?.message ?? "Invalid password payload.");
-  }
-
-  if (parsed.data.adminPassword !== ADMIN_PASSWORD) {
-    return failure("Invalid admin password.");
-  }
-
-  const passwordHash = await bcrypt.hash(parsed.data.newPassword, 12);
-
-  await prisma.user.update({
-    where: { id: userId },
-    data: { passwordHash },
-  });
-
-  revalidatePath("/settings");
-  return success("Password updated.");
 }

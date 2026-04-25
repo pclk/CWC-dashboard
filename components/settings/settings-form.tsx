@@ -4,7 +4,6 @@ import type { TemplateType } from "@prisma/client";
 import { useState, useTransition } from "react";
 
 import {
-  changePasswordWithAdminAction,
   resetMessageTemplateAction,
   updateMessageTemplateAction,
   updateUserSettingsAction,
@@ -28,11 +27,47 @@ type TemplateRow = {
   defaultBody: string;
 };
 
+type LoginSessionRow = {
+  id: string;
+  deviceLabel: string;
+  browser: string;
+  os: string;
+  deviceType: string;
+  ipAddress: string | null;
+  signedInAt: string;
+  lastSeenAt: string;
+  revokedAt: string | null;
+  revokedReason: string | null;
+};
+
+function formatSessionTime(value: string) {
+  return new Intl.DateTimeFormat("en-SG", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function formatRevocationReason(reason: string | null) {
+  if (reason === "PASSWORD_CHANGED") {
+    return "Signed out by password change";
+  }
+
+  if (reason === "SIGNED_OUT") {
+    return "Signed out";
+  }
+
+  return "Signed out";
+}
+
 export function SettingsForm({
   settings,
+  currentSessionId,
+  loginSessions,
   templates,
 }: {
   settings: SettingsValues;
+  currentSessionId: string;
+  loginSessions: LoginSessionRow[];
   templates: TemplateRow[];
 }) {
   const [pending, startTransition] = useTransition();
@@ -48,11 +83,6 @@ export function SettingsForm({
     Object.fromEntries(templates.map((template) => [template.type, template.body])),
   );
   const [status, setStatus] = useState<string | null>(null);
-  const [passwordValues, setPasswordValues] = useState({
-    adminPassword: "",
-    newPassword: "",
-    confirmPassword: "",
-  });
 
   return (
     <div className="space-y-4">
@@ -170,94 +200,69 @@ export function SettingsForm({
 
       <section className="rounded-[2rem] border border-black/10 bg-white/95 p-5 shadow-sm">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Password</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Login Sessions</h2>
           <p className="text-sm text-slate-600">
-            Updating a password requires the admin password.
+            Recent sign-ins are tracked by device, browser, IP, and last activity. Admin password
+            resets revoke active sessions for the affected account.
           </p>
         </div>
 
-        <div className="mt-5 grid gap-4 lg:grid-cols-3">
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700" htmlFor="adminPassword">
-              Admin Password
-            </label>
-            <input
-              id="adminPassword"
-              type="password"
-              value={passwordValues.adminPassword}
-              onChange={(event) =>
-                setPasswordValues((current) => ({
-                  ...current,
-                  adminPassword: event.target.value,
-                }))
-              }
-              className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-            />
-          </div>
+        <div className="mt-4 space-y-3">
+          {loginSessions.length > 0 ? (
+            loginSessions.map((loginSession) => {
+              const isCurrentSession = loginSession.id === currentSessionId;
+              const isActive = !loginSession.revokedAt;
 
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700" htmlFor="newPassword">
-              New Password
-            </label>
-            <input
-              id="newPassword"
-              type="password"
-              autoComplete="new-password"
-              value={passwordValues.newPassword}
-              onChange={(event) =>
-                setPasswordValues((current) => ({
-                  ...current,
-                  newPassword: event.target.value,
-                }))
-              }
-              className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700" htmlFor="confirmNewPassword">
-              Confirm New Password
-            </label>
-            <input
-              id="confirmNewPassword"
-              type="password"
-              autoComplete="new-password"
-              value={passwordValues.confirmPassword}
-              onChange={(event) =>
-                setPasswordValues((current) => ({
-                  ...current,
-                  confirmPassword: event.target.value,
-                }))
-              }
-              className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-            />
-          </div>
-        </div>
-
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() => {
-            startTransition(async () => {
-              const result = await changePasswordWithAdminAction(passwordValues);
-
-              if (result.ok) {
-                setPasswordValues({
-                  adminPassword: "",
-                  newPassword: "",
-                  confirmPassword: "",
-                });
-              }
-
-              setStatus(
-                result.ok ? result.message ?? "Password updated." : result.error ?? "Unable to update password.",
+              return (
+                <article
+                  key={loginSession.id}
+                  className="rounded-[1.5rem] border border-black/10 bg-slate-50/80 p-4"
+                >
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-slate-900">{loginSession.deviceLabel}</p>
+                        {isCurrentSession ? (
+                          <span className="rounded-full bg-teal-100 px-2.5 py-1 text-xs font-semibold text-teal-800">
+                            Current session
+                          </span>
+                        ) : null}
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                            isActive
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-slate-200 text-slate-700"
+                          }`}
+                        >
+                          {isActive
+                            ? "Active"
+                            : formatRevocationReason(loginSession.revokedReason)}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {loginSession.browser} / {loginSession.os} / {loginSession.deviceType}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        IP {loginSession.ipAddress ?? "not available"}
+                      </p>
+                    </div>
+                    <div className="text-sm text-slate-600 lg:text-right">
+                      <p>Signed in {formatSessionTime(loginSession.signedInAt)}</p>
+                      <p>Last seen {formatSessionTime(loginSession.lastSeenAt)}</p>
+                      {loginSession.revokedAt ? (
+                        <p>Revoked {formatSessionTime(loginSession.revokedAt)}</p>
+                      ) : null}
+                    </div>
+                  </div>
+                </article>
               );
-            });
-          }}
-          className="mt-5 rounded-2xl bg-teal-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
-        >
-          Update Password
-        </button>
+            })
+          ) : (
+            <p className="rounded-[1.5rem] border border-dashed border-black/10 p-4 text-sm text-slate-600">
+              No login sessions have been recorded yet.
+            </p>
+          )}
+        </div>
       </section>
 
       <section className="rounded-[2rem] border border-black/10 bg-white/95 p-5 shadow-sm">

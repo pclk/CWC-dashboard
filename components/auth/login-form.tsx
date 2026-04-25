@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 
 import { loginAction } from "@/actions/auth";
@@ -55,6 +56,15 @@ export function LoginForm() {
       >
         {pending ? "Signing in..." : "Sign in"}
       </button>
+
+      <div className="border-t border-black/10 pt-4">
+        <Link
+          href="/admin"
+          className="flex w-full items-center justify-center rounded-2xl border border-black/10 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+        >
+          Open Admin Console
+        </Link>
+      </div>
     </form>
   );
 }

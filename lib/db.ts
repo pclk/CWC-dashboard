@@ -558,6 +558,26 @@ export async function getSettingsAndTemplates(userId: string) {
   };
 }
 
+export async function getUserLoginSessions(userId: string) {
+  return prisma.userSession.findMany({
+    where: { userId },
+    orderBy: [{ signedInAt: "desc" }],
+    take: 20,
+    select: {
+      id: true,
+      deviceLabel: true,
+      browser: true,
+      os: true,
+      deviceType: true,
+      ipAddress: true,
+      signedInAt: true,
+      lastSeenAt: true,
+      revokedAt: true,
+      revokedReason: true,
+    },
+  });
+}
+
 export async function getActiveCadets(userId: string) {
   const cadets = await prisma.cadet.findMany({
     where: {
