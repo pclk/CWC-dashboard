@@ -55,6 +55,28 @@ export function DutyInstructorTable({
     }
   }, [someSelected]);
 
+  useEffect(() => {
+    if (!editingEntry) {
+      return;
+    }
+
+    const originalOverflow = document.body.style.overflow;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setEditingEntry(null);
+      }
+    }
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [editingEntry]);
+
   return (
     <div className="space-y-4">
       <section className="rounded-[2rem] border border-black/10 bg-white/90 p-5 shadow-sm">
@@ -79,124 +101,129 @@ export function DutyInstructorTable({
       </section>
 
       {editingEntry ? (
-        <form
-          action={(formData) => {
-            setError(null);
-            startTransition(async () => {
-              const result = await upsertDutyInstructorAction(formData);
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="duty-instructor-modal-title"
+            action={(formData) => {
+              setError(null);
+              startTransition(async () => {
+                const result = await upsertDutyInstructorAction(formData);
 
-              if (!result.ok) {
-                setError(result.error ?? "Unable to save duty instructor.");
-                return;
-              }
+                if (!result.ok) {
+                  setError(result.error ?? "Unable to save duty instructor.");
+                  return;
+                }
 
-              setEditingEntry(null);
-              router.refresh();
-            });
-          }}
-          className="space-y-4 rounded-[2rem] border border-black/10 bg-white/95 p-5 shadow-sm"
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                {editingEntry.id ? "Edit Duty Instructor" : "Add Duty Instructor"}
-              </h2>
-              <p className="text-sm text-slate-600">Use bulk text for fast entry or form mode for one row.</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setEditingEntry(null)}
-              className="rounded-2xl border border-black/10 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100"
-            >
-              Close
-            </button>
-          </div>
-
-          <input type="hidden" name="id" defaultValue={editingEntry.id} />
-          <input type="hidden" name="mode" value={editingEntry.id ? "form" : entryMode} />
-
-          {!editingEntry.id ? (
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setEntryMode("text")}
-                className={`rounded-2xl px-4 py-2 text-sm font-semibold ${
-                  entryMode === "text"
-                    ? "bg-teal-700 text-white"
-                    : "border border-black/10 text-slate-700 hover:bg-slate-100"
-                }`}
-              >
-                Text Entry
-              </button>
-              <button
-                type="button"
-                onClick={() => setEntryMode("form")}
-                className={`rounded-2xl px-4 py-2 text-sm font-semibold ${
-                  entryMode === "form"
-                    ? "bg-teal-700 text-white"
-                    : "border border-black/10 text-slate-700 hover:bg-slate-100"
-                }`}
-              >
-                Form Entry
-              </button>
-            </div>
-          ) : null}
-
-          {!editingEntry.id && entryMode === "text" ? (
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-700">Entries</label>
-              <textarea
-                name="entryText"
-                rows={6}
-                placeholder={`6 Apr - A\n7 Apr - B - C\n\n13 Apr - D - E`}
-                className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-              />
-              <p className="text-xs text-slate-500">
-                One entry per line. Empty lines are ignored. Format: `Date - Active - Optional Reserve`.
-              </p>
-            </div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700">Date</label>
-                <input
-                  name="dutyDate"
-                  defaultValue={formatShortDayMonth(new Date(editingEntry.dutyDate))}
-                  placeholder="6 Apr"
-                  className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700">Active</label>
-                <input
-                  name="active"
-                  defaultValue={formatActiveLabel(editingEntry)}
-                  placeholder="3WO Chrysanta"
-                  className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700">Reserve</label>
-                <input
-                  name="reserve"
-                  defaultValue={editingEntry.reserve ?? ""}
-                  placeholder="Optional"
-                  className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-                />
-              </div>
-            </div>
-          )}
-
-          {error ? <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p> : null}
-
-          <button
-            type="submit"
-            disabled={pending}
-            className="rounded-2xl bg-teal-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
+                setEditingEntry(null);
+                router.refresh();
+              });
+            }}
+            className="max-h-[calc(100vh-2rem)] w-full max-w-4xl space-y-4 overflow-y-auto rounded-[2rem] border border-black/10 bg-white p-5 shadow-2xl"
           >
-            {pending ? "Saving..." : editingEntry.id ? "Update Entry" : "Create Entry"}
-          </button>
-        </form>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 id="duty-instructor-modal-title" className="text-lg font-semibold text-slate-900">
+                  {editingEntry.id ? "Edit Duty Instructor" : "Add Duty Instructor"}
+                </h2>
+                <p className="text-sm text-slate-600">Use bulk text for fast entry or form mode for one row.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingEntry(null)}
+                className="rounded-2xl border border-black/10 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100"
+              >
+                Close
+              </button>
+            </div>
+
+            <input type="hidden" name="id" defaultValue={editingEntry.id} />
+            <input type="hidden" name="mode" value={editingEntry.id ? "form" : entryMode} />
+
+            {!editingEntry.id ? (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEntryMode("text")}
+                  className={`rounded-2xl px-4 py-2 text-sm font-semibold ${
+                    entryMode === "text"
+                      ? "bg-teal-700 text-white"
+                      : "border border-black/10 text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  Text Entry
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEntryMode("form")}
+                  className={`rounded-2xl px-4 py-2 text-sm font-semibold ${
+                    entryMode === "form"
+                      ? "bg-teal-700 text-white"
+                      : "border border-black/10 text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  Form Entry
+                </button>
+              </div>
+            ) : null}
+
+            {!editingEntry.id && entryMode === "text" ? (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-700">Entries</label>
+                <textarea
+                  name="entryText"
+                  rows={6}
+                  placeholder={`6 Apr - A\n7 Apr - B - C\n\n13 Apr - D - E`}
+                  className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
+                />
+                <p className="text-xs text-slate-500">
+                  One entry per line. Empty lines are ignored. Format: `Date - Active - Optional Reserve`.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-700">Date</label>
+                  <input
+                    name="dutyDate"
+                    defaultValue={formatShortDayMonth(new Date(editingEntry.dutyDate))}
+                    placeholder="6 Apr"
+                    className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-700">Active</label>
+                  <input
+                    name="active"
+                    defaultValue={formatActiveLabel(editingEntry)}
+                    placeholder="3WO Chrysanta"
+                    className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-700">Reserve</label>
+                  <input
+                    name="reserve"
+                    defaultValue={editingEntry.reserve ?? ""}
+                    placeholder="Optional"
+                    className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
+                  />
+                </div>
+              </div>
+            )}
+
+            {error ? <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p> : null}
+
+            <button
+              type="submit"
+              disabled={pending}
+              className="rounded-2xl bg-teal-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
+            >
+              {pending ? "Saving..." : editingEntry.id ? "Update Entry" : "Create Entry"}
+            </button>
+          </form>
+        </div>
       ) : null}
 
       {!editingEntry && error ? (

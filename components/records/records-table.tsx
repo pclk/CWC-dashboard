@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { deleteRecordAction } from "@/actions/records";
@@ -56,6 +56,28 @@ export function RecordsTable({
 
     return tabMatch && categoryMatch && cadetMatch;
   });
+
+  useEffect(() => {
+    if (!editingRecord) {
+      return;
+    }
+
+    const originalOverflow = document.body.style.overflow;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setEditingRecord(null);
+      }
+    }
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [editingRecord]);
 
   return (
     <div className="space-y-4">
@@ -143,12 +165,16 @@ export function RecordsTable({
       </section>
 
       {editingRecord ? (
-        <RecordForm
-          key={editingRecord.id || "new-record"}
-          cadets={cadets}
-          record={editingRecord.id ? editingRecord : null}
-          onCancel={() => setEditingRecord(null)}
-        />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
+          <div role="dialog" aria-modal="true" className="max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-y-auto">
+            <RecordForm
+              key={editingRecord.id || "new-record"}
+              cadets={cadets}
+              record={editingRecord.id ? editingRecord : null}
+              onCancel={() => setEditingRecord(null)}
+            />
+          </div>
+        </div>
       ) : null}
 
       <section className="overflow-hidden rounded-[2rem] border border-black/10 bg-white/90 shadow-sm">
