@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { deleteAppointmentAction } from "@/actions/appointments";
@@ -48,6 +48,28 @@ export function AppointmentsTable({
     if (statusFilter === "UPCOMING") return !appointment.completed;
     return appointment.completed;
   });
+
+  useEffect(() => {
+    if (!editingAppointment) {
+      return;
+    }
+
+    const originalOverflow = document.body.style.overflow;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setEditingAppointment(null);
+      }
+    }
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [editingAppointment]);
 
   return (
     <div className="space-y-4">
@@ -103,12 +125,16 @@ export function AppointmentsTable({
       </section>
 
       {editingAppointment ? (
-        <AppointmentForm
-          key={editingAppointment.id || "new-appointment"}
-          cadets={cadets}
-          appointment={editingAppointment.id ? editingAppointment : null}
-          onCancel={() => setEditingAppointment(null)}
-        />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
+          <div role="dialog" aria-modal="true" className="max-h-[calc(100vh-2rem)] w-full max-w-4xl overflow-y-auto">
+            <AppointmentForm
+              key={editingAppointment.id || "new-appointment"}
+              cadets={cadets}
+              appointment={editingAppointment.id ? editingAppointment : null}
+              onCancel={() => setEditingAppointment(null)}
+            />
+          </div>
+        </div>
       ) : null}
 
       <section className="overflow-hidden rounded-[2rem] border border-black/10 bg-white/90 shadow-sm">

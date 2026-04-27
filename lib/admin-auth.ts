@@ -6,7 +6,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionDeviceMetadataFromHeaders } from "@/lib/session-metadata";
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "The0GCWCizM@tthew";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const ADMIN_SESSION_COOKIE_NAME = "cwc_admin_session";
 const ADMIN_SESSION_COOKIE_PATH = "/admin";
 const ADMIN_SESSION_MAX_AGE_SECONDS = 12 * 60 * 60;
@@ -55,6 +55,10 @@ function getAdminPasswordComparisonDigest(adminPassword: string) {
 }
 
 export function isValidAdminPassword(adminPassword: string) {
+  if (!ADMIN_PASSWORD) {
+    return false;
+  }
+
   const actualDigest = getAdminPasswordComparisonDigest(adminPassword);
   const expectedDigest = getAdminPasswordComparisonDigest(ADMIN_PASSWORD);
 
@@ -62,6 +66,10 @@ export function isValidAdminPassword(adminPassword: string) {
 }
 
 function getAdminPasswordFingerprint() {
+  if (!ADMIN_PASSWORD) {
+    throw new Error("ADMIN_PASSWORD is required for admin dashboard sessions.");
+  }
+
   return createHmac("sha256", getAdminAuthSecret())
     .update(`${ADMIN_PASSWORD_FINGERPRINT_PREFIX}:${ADMIN_PASSWORD}`)
     .digest("hex");
@@ -198,6 +206,10 @@ export async function getAdminSession() {
   const nowSeconds = Math.floor(Date.now() / 1000);
 
   if (!payload || payload.exp <= nowSeconds) {
+    return null;
+  }
+
+  if (!ADMIN_PASSWORD) {
     return null;
   }
 
