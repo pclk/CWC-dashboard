@@ -155,11 +155,11 @@ export function buildDashboardNextActions(input: {
   const currentAffairSharingTime = DEFAULT_ANNOUNCEMENT_TIMES.CURRENT_AFFAIR_SHARING;
   const { start: currentAffairWeekStart, end: currentAffairWeekEnd } = getCurrentAffairWeekBounds(now);
   const currentAffairDateRange = formatCurrentAffairDateRange(currentAffairWeekStart, currentAffairWeekEnd);
-  const morningParadeHref = `/parade-state?${new URLSearchParams({
+  const morningParadeHref = `/cwc/parade-state?${new URLSearchParams({
     reportType: "Morning",
     reportAt: `${today} ${DEFAULT_ANNOUNCEMENT_TIMES.PARADE_STATE_MORNING}`,
   }).toString()}`;
-  const nightParadeHref = `/parade-state?${new URLSearchParams({
+  const nightParadeHref = `/cwc/parade-state?${new URLSearchParams({
     reportType: "Night",
     reportAt: `${today} ${DEFAULT_ANNOUNCEMENT_TIMES.PARADE_STATE_NIGHT}`,
   }).toString()}`;
@@ -173,7 +173,7 @@ export function buildDashboardNextActions(input: {
       copyText: generateRoutineAnnouncementMessage(input.templateMap.FIRST_PARADE, {
         time: firstParadeTime,
       }),
-      href: `/announcements#${ANNOUNCEMENT_SECTION_IDS.FIRST_PARADE}`,
+      href: `/cwc/announcements#${ANNOUNCEMENT_SECTION_IDS.FIRST_PARADE}`,
       hrefLabel: "Go to Announcements",
     },
     {
@@ -197,7 +197,7 @@ export function buildDashboardNextActions(input: {
         time: ptTime,
         activity: ptActivity,
       }),
-      href: `/announcements#${ANNOUNCEMENT_SECTION_IDS.PT}`,
+      href: `/cwc/announcements#${ANNOUNCEMENT_SECTION_IDS.PT}`,
       hrefLabel: "Go to Announcements",
     },
     {
@@ -208,7 +208,7 @@ export function buildDashboardNextActions(input: {
       copyText: generateCurrentAffairReminderMessage(input.templateMap.CURRENT_AFFAIR_REMINDER, {
         time: DEFAULT_ANNOUNCEMENT_TIMES.CURRENT_AFFAIR_SHARING,
       }),
-      href: `/current-affairs#${CURRENT_AFFAIR_SECTION_ID}`,
+      href: `/cwc/current-affairs#${CURRENT_AFFAIR_SECTION_ID}`,
       hrefLabel: "Go to Current Affairs",
     },
     {
@@ -225,7 +225,7 @@ export function buildDashboardNextActions(input: {
           title: entry.title,
         })),
       }),
-      href: `/current-affairs#${CURRENT_AFFAIR_SECTION_ID}`,
+      href: `/cwc/current-affairs#${CURRENT_AFFAIR_SECTION_ID}`,
       hrefLabel: "Go to Current Affairs",
     },
     {
@@ -236,7 +236,7 @@ export function buildDashboardNextActions(input: {
       copyText: generateRoutineAnnouncementMessage(input.templateMap.MORNING_LAB, {
         time: morningLabTime,
       }),
-      href: `/announcements#${ANNOUNCEMENT_SECTION_IDS.MORNING_LAB}`,
+      href: `/cwc/announcements#${ANNOUNCEMENT_SECTION_IDS.MORNING_LAB}`,
       hrefLabel: "Go to Announcements",
     },
     {
@@ -248,7 +248,7 @@ export function buildDashboardNextActions(input: {
         time: mtr1030Time,
         location: input.settings.announcementMtr1030Location ?? "",
       }),
-      href: `/announcements#${ANNOUNCEMENT_SECTION_IDS.MTR_1030}`,
+      href: `/cwc/announcements#${ANNOUNCEMENT_SECTION_IDS.MTR_1030}`,
       hrefLabel: "Go to Announcements",
     },
     {
@@ -260,7 +260,7 @@ export function buildDashboardNextActions(input: {
         time: mtr1630Time,
         location: input.settings.announcementMtr1630Location ?? "",
       }),
-      href: `/announcements#${ANNOUNCEMENT_SECTION_IDS.MTR_1630}`,
+      href: `/cwc/announcements#${ANNOUNCEMENT_SECTION_IDS.MTR_1630}`,
       hrefLabel: "Go to Announcements",
     },
     {
@@ -276,7 +276,7 @@ export function buildDashboardNextActions(input: {
         time: requestDiMessageTime,
         firstTime: Boolean(input.settings.announcementRequestDiFirstTime),
       }),
-      href: `/announcements#${ANNOUNCEMENT_SECTION_IDS.REQUEST_DI_FP}`,
+      href: `/cwc/announcements#${ANNOUNCEMENT_SECTION_IDS.REQUEST_DI_FP}`,
       hrefLabel: "Go to Announcements",
     },
     {
@@ -292,7 +292,7 @@ export function buildDashboardNextActions(input: {
         time: requestLpMessageTime,
         firstTime: Boolean(input.settings.announcementRequestLpFirstTime),
       }),
-      href: `/announcements#${ANNOUNCEMENT_SECTION_IDS.REQUEST_LP}`,
+      href: `/cwc/announcements#${ANNOUNCEMENT_SECTION_IDS.REQUEST_LP}`,
       hrefLabel: "Go to Announcements",
     },
     {
@@ -304,7 +304,7 @@ export function buildDashboardNextActions(input: {
         time: lastParadeTime,
         location: lastParadeLocation,
       }),
-      href: `/announcements#${ANNOUNCEMENT_SECTION_IDS.LAST_PARADE_1730}`,
+      href: `/cwc/announcements#${ANNOUNCEMENT_SECTION_IDS.LAST_PARADE_1730}`,
       hrefLabel: "Go to Announcements",
     },
     {

@@ -52,7 +52,7 @@ export async function updateNightStudyDraftAction(input: {
     },
   });
 
-  revalidatePath("/night-study");
-  revalidatePath("/troop-movement");
+  revalidatePath("/cwc/night-study");
+  revalidatePath("/cwc/troop-movement");
   return success("Night study groups saved.");
 }

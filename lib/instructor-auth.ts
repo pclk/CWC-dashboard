@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionDeviceMetadataFromHeaders } from "@/lib/session-metadata";
 
 const INSTRUCTOR_SESSION_COOKIE_NAME = "cwc_instructor_session";
-const INSTRUCTOR_SESSION_COOKIE_PATH = "/instructors";
+const INSTRUCTOR_SESSION_COOKIE_PATH = "/cwc/instructors";
 const INSTRUCTOR_SESSION_MAX_AGE_SECONDS = 12 * 60 * 60;
 const INSTRUCTOR_SESSION_LAST_SEEN_WRITE_INTERVAL_MS = 60_000;
 const INSTRUCTOR_SESSION_VERSION = 1;

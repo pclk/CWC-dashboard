@@ -96,12 +96,12 @@ export async function updateUserSettingsAction(
     }
   });
 
-  revalidatePath("/settings");
-  revalidatePath("/dashboard");
-  revalidatePath("/parade-state");
-  revalidatePath("/announcements");
-  revalidatePath("/current-affairs");
-  revalidatePath("/book-in");
+  revalidatePath("/cwc/settings");
+  revalidatePath("/cwc/dashboard");
+  revalidatePath("/cwc/parade-state");
+  revalidatePath("/cwc/announcements");
+  revalidatePath("/cwc/current-affairs");
+  revalidatePath("/cwc/book-in");
   return success("Settings updated.");
 }
 
@@ -130,13 +130,13 @@ export async function updateMessageTemplateAction(
     },
   });
 
-  revalidatePath("/settings");
-  revalidatePath("/dashboard");
-  revalidatePath("/parade-state");
-  revalidatePath("/troop-movement");
-  revalidatePath("/announcements");
-  revalidatePath("/current-affairs");
-  revalidatePath("/book-in");
+  revalidatePath("/cwc/settings");
+  revalidatePath("/cwc/dashboard");
+  revalidatePath("/cwc/parade-state");
+  revalidatePath("/cwc/troop-movement");
+  revalidatePath("/cwc/announcements");
+  revalidatePath("/cwc/current-affairs");
+  revalidatePath("/cwc/book-in");
   return success("Template updated.");
 }
 
@@ -165,12 +165,12 @@ export async function resetMessageTemplateAction(
     },
   });
 
-  revalidatePath("/settings");
-  revalidatePath("/dashboard");
-  revalidatePath("/parade-state");
-  revalidatePath("/troop-movement");
-  revalidatePath("/announcements");
-  revalidatePath("/current-affairs");
-  revalidatePath("/book-in");
+  revalidatePath("/cwc/settings");
+  revalidatePath("/cwc/dashboard");
+  revalidatePath("/cwc/parade-state");
+  revalidatePath("/cwc/troop-movement");
+  revalidatePath("/cwc/announcements");
+  revalidatePath("/cwc/current-affairs");
+  revalidatePath("/cwc/book-in");
   return success("Template reset to default.");
 }

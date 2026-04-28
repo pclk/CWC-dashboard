@@ -122,7 +122,7 @@ export async function changeInstructorPasswordAsAdminAction(input: {
   ]);
 
   revalidatePath("/admin");
-  revalidatePath("/instructors");
+  revalidatePath("/cwc/instructors");
 
   const revokedMessage =
     revokedSessions.count === 1

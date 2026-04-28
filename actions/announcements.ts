@@ -42,9 +42,9 @@ export async function updateAnnouncementTemplateAction(
     },
   });
 
-  revalidatePath("/dashboard");
-  revalidatePath("/announcements");
-  revalidatePath("/current-affairs");
-  revalidatePath("/settings");
+  revalidatePath("/cwc/dashboard");
+  revalidatePath("/cwc/announcements");
+  revalidatePath("/cwc/current-affairs");
+  revalidatePath("/cwc/settings");
   return success("Announcement template updated.");
 }

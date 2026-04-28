@@ -28,18 +28,18 @@ export function parseNumber(value: FormDataEntryValue | null, fallback = 0) {
 }
 
 export function revalidateOperationalPages() {
-  revalidatePath("/dashboard");
-  revalidatePath("/cadets");
-  revalidatePath("/records");
-  revalidatePath("/appointments");
-  revalidatePath("/bunks");
-  revalidatePath("/announcements");
-  revalidatePath("/current-affairs");
-  revalidatePath("/parade-state");
-  revalidatePath("/troop-movement");
-  revalidatePath("/night-study");
-  revalidatePath("/book-in");
-  revalidatePath("/duty-instructors");
+  revalidatePath("/cwc/dashboard");
+  revalidatePath("/cwc/cadets");
+  revalidatePath("/cwc/records");
+  revalidatePath("/cwc/appointments");
+  revalidatePath("/cwc/bunks");
+  revalidatePath("/cwc/announcements");
+  revalidatePath("/cwc/current-affairs");
+  revalidatePath("/cwc/parade-state");
+  revalidatePath("/cwc/troop-movement");
+  revalidatePath("/cwc/night-study");
+  revalidatePath("/cwc/book-in");
+  revalidatePath("/cwc/duty-instructors");
 }
 
 export function success(message: string): ActionResult {

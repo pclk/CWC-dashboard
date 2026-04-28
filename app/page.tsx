@@ -16,10 +16,10 @@ export default async function HomePage() {
       }
 
       if (session?.user?.id) {
-        redirect("/dashboard");
+        redirect("/cwc/dashboard");
       }
 
-      redirect("/login");
+      redirect("/cadet/login");
     },
     { fullscreen: true },
   );

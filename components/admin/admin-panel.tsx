@@ -80,7 +80,7 @@ export function AdminPanel({ initialState }: { initialState: AdminPanelState }) 
           </button>
 
           <Link
-            href="/instructors"
+            href="/cwc/instructors"
             className="flex w-full justify-center rounded-2xl border border-black/10 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
           >
             Instructor login
@@ -190,7 +190,7 @@ export function AdminPanel({ initialState }: { initialState: AdminPanelState }) 
             Change instructor password
           </button>
           <Link
-            href="/instructors"
+            href="/cwc/instructors"
             className="rounded-2xl border border-black/10 px-5 py-3 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
           >
             Instructor login

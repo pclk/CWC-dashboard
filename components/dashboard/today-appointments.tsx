@@ -21,7 +21,7 @@ export function TodayAppointments({ appointments }: { appointments: AppointmentI
           <p className="text-sm text-slate-600">Upcoming incomplete appointments, sorted ascending.</p>
         </div>
         <Link
-          href="/appointments"
+          href="/cwc/appointments"
           className="rounded-2xl border border-black/10 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
         >
           Manage

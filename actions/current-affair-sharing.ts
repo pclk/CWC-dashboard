@@ -14,8 +14,8 @@ import {
 } from "@/lib/validators/current-affair-sharing";
 
 function revalidateCurrentAffairViews() {
-  revalidatePath("/dashboard");
-  revalidatePath("/current-affairs");
+  revalidatePath("/cwc/dashboard");
+  revalidatePath("/cwc/current-affairs");
 }
 
 export async function upsertCurrentAffairSharingAction(formData: FormData): Promise<ActionResult> {

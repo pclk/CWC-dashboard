@@ -17,7 +17,7 @@ export default async function LoginPage() {
       }
 
       if (session?.user?.id) {
-        redirect("/dashboard");
+        redirect("/cwc/dashboard");
       }
 
       return (
@@ -26,14 +26,14 @@ export default async function LoginPage() {
             <section className="space-y-6">
               <div className="space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-teal-700">
-                  Internal Operations
+                  CWC Operations
                 </p>
                 <h1 className="max-w-xl text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">
-                  Reliable message generation for cadet wing operations.
+                  Sign in as the current CWC appointment holder.
                 </h1>
                 <p className="max-w-2xl text-base text-slate-600 sm:text-lg">
-                  Track cadets, operational records, appointments, parade state, troop movement,
-                  and announcement templates in one protected dashboard.
+                  Access is limited to the active cadet assigned as CWC. Dashboard data remains
+                  scoped to the owning batch.
                 </p>
               </div>
             </section>

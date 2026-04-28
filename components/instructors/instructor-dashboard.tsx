@@ -830,7 +830,7 @@ export function InstructorDashboard({ initialOverview = null }: { initialOvervie
               </p>
             </div>
             <Link
-              href="/login"
+              href="/cwc/login"
               className="inline-flex rounded-2xl border border-black/10 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
             >
               Back to login

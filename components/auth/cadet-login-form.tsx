@@ -3,17 +3,17 @@
 import Link from "next/link";
 import { useActionState } from "react";
 
-import { loginAction } from "@/actions/auth";
+import { cadetLoginAction } from "@/actions/cadet-auth";
 
-export function LoginForm() {
-  const [state, formAction, pending] = useActionState(loginAction, undefined);
+export function CadetLoginForm() {
+  const [state, formAction, pending] = useActionState(cadetLoginAction, undefined);
 
   return (
     <form action={formAction} className="space-y-4 rounded-3xl border border-black/10 bg-white/90 p-6 shadow-sm">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">CWC sign in</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Cadet sign in</h1>
         <p className="text-sm text-slate-600">
-          Use your cadet name or shorthand and password to access the CWC dashboard.
+          Use your cadet name or shorthand and password to access trainee services.
         </p>
       </div>
 
@@ -57,12 +57,18 @@ export function LoginForm() {
         {pending ? "Signing in..." : "Sign in"}
       </button>
 
-      <div className="border-t border-black/10 pt-4">
+      <div className="grid gap-2 border-t border-black/10 pt-4 sm:grid-cols-2">
         <Link
           href="/cwc/instructors"
-          className="flex w-full items-center justify-center rounded-2xl border border-black/10 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+          className="flex items-center justify-center rounded-2xl border border-black/10 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
         >
-          Open Instructor Console
+          Sign in as Instructor
+        </Link>
+        <Link
+          href="/cwc/login"
+          className="flex items-center justify-center rounded-2xl border border-black/10 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+        >
+          Sign in as CWC
         </Link>
       </div>
     </form>

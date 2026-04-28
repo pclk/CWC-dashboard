@@ -9,6 +9,7 @@ import { loginSchema } from "@/lib/validators/auth";
 
 const SESSION_LAST_SEEN_WRITE_INTERVAL_MS = 60_000;
 const SESSION_PASSWORD_FINGERPRINT_PREFIX = "cwc-dashboard-session-password-v1";
+const CWC_APPOINTMENT_HOLDER = "CWC";
 
 function getSessionPasswordFingerprint(passwordHash: string) {
   return createHash("sha256")
@@ -18,7 +19,7 @@ function getSessionPasswordFingerprint(passwordHash: string) {
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   pages: {
-    signIn: "/login",
+    signIn: "/cwc/login",
   },
   session: {
     strategy: "jwt",
@@ -28,7 +29,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     Credentials({
       name: "Credentials",
       credentials: {
-        batchName: { label: "Batch name", type: "text" },
+        cadetIdentifier: { label: "Cadet name or shorthand", type: "text" },
         password: { label: "Password", type: "password" },
       },
       async authorize(rawCredentials, request) {
@@ -38,15 +39,39 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null;
         }
 
-        const user = await prisma.user.findUnique({
-          where: { batchName: parsed.data.batchName },
+        const cadet = await prisma.cadet.findFirst({
+          where: {
+            active: true,
+            appointmentHolder: CWC_APPOINTMENT_HOLDER,
+            passwordHash: { not: null },
+            OR: [
+              { displayName: { equals: parsed.data.cadetIdentifier, mode: "insensitive" } },
+              { shorthand: { equals: parsed.data.cadetIdentifier, mode: "insensitive" } },
+            ],
+          },
+          select: {
+            id: true,
+            userId: true,
+            displayName: true,
+            passwordHash: true,
+            appointmentHolder: true,
+            user: {
+              select: {
+                batchName: true,
+              },
+            },
+          },
         });
 
-        if (!user) {
+        if (
+          !cadet ||
+          !cadet.passwordHash ||
+          cadet.appointmentHolder !== CWC_APPOINTMENT_HOLDER
+        ) {
           return null;
         }
 
-        if (!(await bcrypt.compare(parsed.data.password, user.passwordHash))) {
+        if (!(await bcrypt.compare(parsed.data.password, cadet.passwordHash))) {
           return null;
         }
 
@@ -54,7 +79,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const signedInAt = new Date();
         const userSession = await prisma.userSession.create({
           data: {
-            userId: user.id,
+            userId: cadet.userId,
             userAgent: deviceMetadata.userAgent,
             ipAddress: deviceMetadata.ipAddress,
             browser: deviceMetadata.browser,
@@ -67,12 +92,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         });
 
         return {
-          id: user.id,
-          name: user.displayName ?? user.batchName,
-          displayName: user.displayName,
-          batchName: user.batchName,
+          id: cadet.userId,
+          name: cadet.displayName,
+          displayName: cadet.displayName,
+          batchName: cadet.user.batchName,
+          cadetId: cadet.id,
+          cadetDisplayName: cadet.displayName,
+          appointmentHolder: cadet.appointmentHolder,
           sessionId: userSession.id,
-          sessionPasswordFingerprint: getSessionPasswordFingerprint(user.passwordHash),
+          sessionPasswordFingerprint: getSessionPasswordFingerprint(cadet.passwordHash),
         };
       },
     }),
@@ -83,11 +111,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.userId = user.id;
         token.sessionId = user.sessionId ?? null;
         token.displayName = user.displayName ?? user.name ?? null;
+        token.batchName = user.batchName ?? null;
+        token.cadetId = user.cadetId ?? null;
+        token.cadetDisplayName = user.cadetDisplayName ?? user.displayName ?? user.name ?? null;
+        token.appointmentHolder = user.appointmentHolder ?? null;
         token.sessionPasswordFingerprint = user.sessionPasswordFingerprint ?? null;
-        return token.sessionId && token.sessionPasswordFingerprint ? token : null;
+        return token.sessionId && token.cadetId && token.sessionPasswordFingerprint ? token : null;
       }
 
-      if (!token.userId || !token.sessionId || !token.sessionPasswordFingerprint) {
+      if (!token.userId || !token.sessionId || !token.cadetId || !token.sessionPasswordFingerprint) {
         return null;
       }
 
@@ -101,8 +133,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           user: {
             select: {
               batchName: true,
-              displayName: true,
-              passwordHash: true,
             },
           },
         },
@@ -112,9 +142,40 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         return null;
       }
 
-      const currentPasswordFingerprint = getSessionPasswordFingerprint(
-        userSession.user.passwordHash,
-      );
+      const cadet = await prisma.cadet.findUnique({
+        where: { id: String(token.cadetId) },
+        select: {
+          id: true,
+          userId: true,
+          displayName: true,
+          active: true,
+          appointmentHolder: true,
+          passwordHash: true,
+        },
+      });
+
+      if (
+        !cadet ||
+        cadet.userId !== token.userId ||
+        !cadet.active ||
+        cadet.appointmentHolder !== CWC_APPOINTMENT_HOLDER ||
+        !cadet.passwordHash
+      ) {
+        await prisma.userSession.updateMany({
+          where: {
+            id: userSession.id,
+            revokedAt: null,
+          },
+          data: {
+            revokedAt: new Date(),
+            revokedReason: "CWC_ACCESS_REVOKED",
+          },
+        });
+
+        return null;
+      }
+
+      const currentPasswordFingerprint = getSessionPasswordFingerprint(cadet.passwordHash);
 
       if (token.sessionPasswordFingerprint !== currentPasswordFingerprint) {
         await prisma.userSession.updateMany({
@@ -124,7 +185,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           },
           data: {
             revokedAt: new Date(),
-            revokedReason: "PASSWORD_CHANGED",
+            revokedReason: "CADET_PASSWORD_CHANGED",
           },
         });
 
@@ -145,9 +206,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         });
       }
 
-      token.name = userSession.user.displayName ?? userSession.user.batchName;
-      token.displayName = userSession.user.displayName;
+      token.name = cadet.displayName;
+      token.displayName = cadet.displayName;
       token.batchName = userSession.user.batchName;
+      token.cadetId = cadet.id;
+      token.cadetDisplayName = cadet.displayName;
+      token.appointmentHolder = cadet.appointmentHolder;
 
       return token;
     },
@@ -159,6 +223,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           typeof token.displayName === "string" ? token.displayName : session.user.name;
         session.user.batchName =
           typeof token.batchName === "string" ? token.batchName : session.user.batchName;
+        session.user.cadetId = typeof token.cadetId === "string" ? token.cadetId : null;
+        session.user.cadetDisplayName =
+          typeof token.cadetDisplayName === "string" ? token.cadetDisplayName : null;
+        session.user.appointmentHolder =
+          typeof token.appointmentHolder === "string" ? token.appointmentHolder : null;
       }
 
       return session;

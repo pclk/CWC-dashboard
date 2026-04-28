@@ -5,6 +5,9 @@ declare module "next-auth" {
     user: DefaultSession["user"] & {
       id: string;
       sessionId: string;
+      cadetId?: string | null;
+      cadetDisplayName?: string | null;
+      appointmentHolder?: string | null;
       batchName?: string | null;
     };
   }
@@ -14,6 +17,9 @@ declare module "next-auth" {
     sessionId?: string | null;
     displayName?: string | null;
     batchName?: string | null;
+    cadetId?: string | null;
+    cadetDisplayName?: string | null;
+    appointmentHolder?: string | null;
     sessionPasswordFingerprint?: string | null;
   }
 }
@@ -24,6 +30,9 @@ declare module "next-auth/jwt" {
     sessionId?: string | null;
     displayName?: string | null;
     batchName?: string | null;
+    cadetId?: string | null;
+    cadetDisplayName?: string | null;
+    appointmentHolder?: string | null;
     sessionPasswordFingerprint?: string | null;
   }
 }

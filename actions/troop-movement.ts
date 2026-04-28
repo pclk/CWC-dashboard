@@ -29,7 +29,7 @@ export async function saveTroopMovementAction(
     finalMessage: parsed.data.finalMessage,
   });
 
-  revalidatePath("/troop-movement");
+  revalidatePath("/cwc/troop-movement");
   return success("Troop movement saved.");
 }
 
@@ -51,6 +51,6 @@ export async function deleteTroopMovementAction(
     },
   });
 
-  revalidatePath("/troop-movement");
+  revalidatePath("/cwc/troop-movement");
   return success("Troop movement deleted.");
 }

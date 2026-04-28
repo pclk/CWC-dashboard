@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/layout/app-shell";
-import { requirePageUser } from "@/lib/session";
+import { requireCwcUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -8,7 +8,7 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const user = await requirePageUser();
+  const user = await requireCwcUser();
 
   return <AppShell user={user}>{children}</AppShell>;
 }

@@ -3,9 +3,11 @@ import { z } from "zod";
 export const batchNameSchema = z.string().trim().min(2).max(80);
 
 export const loginSchema = z.object({
-  batchName: batchNameSchema,
+  cadetIdentifier: z.string().trim().min(1, "Cadet name or shorthand is required.").max(80),
   password: z.string(),
 });
+
+export const cadetLoginSchema = loginSchema;
 
 export const setupSchema = z
   .object({

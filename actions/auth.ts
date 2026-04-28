@@ -15,7 +15,7 @@ export async function loginAction(
   formData: FormData,
 ): Promise<ActionResult | undefined> {
   const parsed = loginSchema.safeParse({
-    batchName: formData.get("batchName"),
+    cadetIdentifier: formData.get("cadetIdentifier"),
     password: formData.get("password"),
   });
 
@@ -25,13 +25,13 @@ export async function loginAction(
 
   try {
     await signIn("credentials", {
-      batchName: parsed.data.batchName,
+      cadetIdentifier: parsed.data.cadetIdentifier,
       password: parsed.data.password,
-      redirectTo: "/dashboard",
+      redirectTo: "/cwc/dashboard",
     });
   } catch (error) {
     if (error instanceof AuthError) {
-      return failure("Invalid batch name or password.");
+      return failure("Invalid credentials or not assigned as CWC.");
     }
 
     throw error;
@@ -56,7 +56,7 @@ export async function createInitialUserAction(
   const existingUserCount = await prisma.user.count();
 
   if (existingUserCount > 0) {
-    redirect("/login");
+    redirect("/cwc/login");
   }
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
@@ -98,7 +98,7 @@ export async function createInitialUserAction(
     await signIn("credentials", {
       batchName: parsed.data.batchName,
       password: parsed.data.password,
-      redirectTo: "/dashboard",
+      redirectTo: "/cwc/dashboard",
     });
   } catch (error) {
     if (error instanceof AuthError) {
@@ -111,6 +111,6 @@ export async function createInitialUserAction(
 
 export async function logoutAction() {
   await signOut({
-    redirectTo: "/login",
+    redirectTo: "/cwc/login",
   });
 }

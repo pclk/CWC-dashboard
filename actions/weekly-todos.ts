@@ -13,7 +13,7 @@ import {
 import { revalidatePath } from "next/cache";
 
 function revalidateWeeklyTodoViews() {
-  revalidatePath("/dashboard");
+  revalidatePath("/cwc/dashboard");
 }
 
 export async function createWeeklyTodoAction(formData: FormData): Promise<ActionResult> {

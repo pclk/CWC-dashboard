@@ -472,7 +472,7 @@ export async function instructorDashboardLoginAction(input: {
   }
 
   await createInstructorSession(user);
-  revalidatePath("/instructors");
+  revalidatePath("/cwc/instructors");
 
   return {
     ok: true,
@@ -483,7 +483,7 @@ export async function instructorDashboardLoginAction(input: {
 
 export async function instructorDashboardLogoutAction(): Promise<ActionResult> {
   await clearInstructorSession();
-  revalidatePath("/instructors");
+  revalidatePath("/cwc/instructors");
 
   return success("Signed out.");
 }
@@ -535,7 +535,7 @@ export async function changeBatchNameAsInstructorAction(input: {
     throw error;
   }
 
-  revalidatePath("/instructors");
+  revalidatePath("/cwc/instructors");
 
   return {
     ok: true,

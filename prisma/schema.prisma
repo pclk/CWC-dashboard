@@ -18,6 +18,8 @@ model User {
 
   cadets               Cadet[]
   records              CadetRecord[]
+  cadetRequests        CadetRequest[]
+  cadetNightStudyChoices CadetNightStudyChoice[]
   appointments         Appointment[]
   weeklyTodos          WeeklyTodo[]
   currentAffairSharings CurrentAffairSharing[]
@@ -134,6 +136,13 @@ model Cadet {
   displayName   String
   shorthand     String?
   active        Boolean  @default(true)
+  appointmentHolder       String?
+  passwordHash            String?
+  resetTokenHash          String?
+  resetTokenExpiresAt     DateTime?
+  resetTokenRevokedAt     DateTime?
+  resetTokenRevokedReason String?
+  lastPasswordSetAt       DateTime?
   sortOrder     Int      @default(0)
   notes         String?
   createdAt     DateTime @default(now())
@@ -143,8 +152,11 @@ model Cadet {
   records      CadetRecord[]
   recordStats  CadetRecordStat[]
   appointments Appointment[]
+  requests     CadetRequest[]
+  nightStudyChoices CadetNightStudyChoice[]
 
   @@index([userId, active])
+  @@index([userId, appointmentHolder, active])
   @@unique([userId, displayName])
 }
 
@@ -163,6 +175,74 @@ enum ResolutionState {
   ACTIVE
   EXPIRED_PENDING_CONFIRMATION
   RESOLVED
+}
+
+enum CadetRequestType {
+  REPORT_SICK
+  MC_STATUS_UPDATE
+}
+
+enum CadetRequestStatus {
+  PENDING_INSTRUCTOR
+  PENDING_CWC
+  APPROVED
+  DECLINED
+}
+
+enum CadetNightStudyChoiceType {
+  NIGHT_STUDY
+  EARLY_PARTY
+  GO_BACK_BUNK
+}
+
+model CadetRequest {
+  id                     String              @id @default(cuid())
+  userId                 String
+  cadetId                String
+  type                   CadetRequestType
+  category               RecordCategory
+  title                  String?
+  details                String?
+  startAt                DateTime?
+  endAt                  DateTime?
+  unknownEndTime         Boolean             @default(false)
+  affectsStrength        Boolean             @default(true)
+  countsNotInCamp        Boolean             @default(false)
+  status                 CadetRequestStatus
+  instructorApprovedAt   DateTime?
+  instructorApprovedBy   String?
+  cwcApprovedAt          DateTime?
+  cwcApprovedBy          String?
+  declinedAt             DateTime?
+  declinedByRole         String?
+  declineReason          String?
+  resultingCadetRecordId String?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  user                  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cadet                 Cadet        @relation(fields: [cadetId], references: [id], onDelete: Cascade)
+  resultingCadetRecord  CadetRecord? @relation("CadetRequestResultingRecord", fields: [resultingCadetRecordId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([cadetId, status])
+  @@index([userId, type, status])
+}
+
+model CadetNightStudyChoice {
+  id        String                    @id @default(cuid())
+  userId    String
+  cadetId   String
+  date      DateTime
+  choice    CadetNightStudyChoiceType
+  createdAt DateTime                  @default(now())
+  updatedAt DateTime                  @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cadet Cadet @relation(fields: [cadetId], references: [id], onDelete: Cascade)
+
+  @@unique([cadetId, date])
+  @@index([userId, date])
 }
 
 model CadetRecord {
@@ -185,6 +265,7 @@ model CadetRecord {
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   cadet Cadet @relation(fields: [cadetId], references: [id], onDelete: Cascade)
+  cadetRequests CadetRequest[] @relation("CadetRequestResultingRecord")
 
   @@index([userId, category, resolutionState])
   @@index([userId, cadetId])

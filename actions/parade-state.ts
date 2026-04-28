@@ -37,7 +37,7 @@ export async function saveParadeStateSnapshotAction(
   }
 
   await saveParadeStateSnapshot(userId, parsed.data);
-  revalidatePath("/parade-state");
+  revalidatePath("/cwc/parade-state");
   return success("Snapshot saved.");
 }
 
@@ -59,7 +59,7 @@ export async function deleteParadeStateSnapshotAction(
     },
   });
 
-  revalidatePath("/parade-state");
+  revalidatePath("/cwc/parade-state");
   return success("Snapshot deleted.");
 }
 
