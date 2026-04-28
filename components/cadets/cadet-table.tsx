@@ -19,12 +19,22 @@ type CadetRow = {
   recordStats: Array<{
     category: string;
     recordCount: number;
+    totalDays?: number | null;
     firstRecordAt: Date | string;
   }>;
 };
 
 function getCadetRecordTotal(cadet: CadetRow) {
   return cadet.recordStats.reduce((total, stat) => total + stat.recordCount, 0);
+}
+
+function formatRecordStat(stat: CadetRow["recordStats"][number]) {
+  const totalDays = typeof stat.totalDays === "number" && Number.isFinite(stat.totalDays)
+    ? stat.totalDays
+    : 0;
+  const dayLabel = totalDays === 1 ? "day" : "days";
+
+  return `${stat.recordCount}x ${getRecordCategoryLabel(stat.category)}: ${totalDays} ${dayLabel}`;
 }
 
 function getCadetFirstRecordDate(cadet: CadetRow) {
@@ -138,7 +148,7 @@ export function CadetTable({ cadets }: { cadets: CadetRow[] }) {
                               key={category}
                               className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
                             >
-                              {getRecordCategoryLabel(category)} {stat.recordCount}
+                              {formatRecordStat(stat)}
                             </span>
                           );
                         })}

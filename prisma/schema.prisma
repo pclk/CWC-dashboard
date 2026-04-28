@@ -9,8 +9,9 @@ datasource db {
 
 model User {
   id             String   @id @default(cuid())
-  email          String   @unique
+  batchName      String   @unique
   passwordHash   String
+  instructorPasswordHash String
   displayName    String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -196,6 +197,7 @@ model CadetRecordStat {
   cadetId       String
   category      RecordCategory
   recordCount   Int            @default(0)
+  totalDays     Int            @default(0)
   firstRecordAt DateTime
   updatedAt     DateTime       @updatedAt
 

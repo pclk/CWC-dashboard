@@ -1,5 +1,5 @@
-import { getCurrentAdminOverview } from "@/actions/admin";
-import { AdminDashboard } from "@/components/admin/admin-dashboard";
+import { getCurrentAdminPanelState } from "@/actions/admin";
+import { AdminPanel } from "@/components/admin/admin-panel";
 import { renderWithDatabaseWakeupFallback } from "@/lib/database-wakeup";
 
 export const dynamic = "force-dynamic";
@@ -7,9 +7,9 @@ export const dynamic = "force-dynamic";
 export default async function AdminPage() {
   return renderWithDatabaseWakeupFallback(
     async () => {
-      const initialOverview = await getCurrentAdminOverview();
+      const initialState = await getCurrentAdminPanelState();
 
-      return <AdminDashboard initialOverview={initialOverview} />;
+      return <AdminPanel initialState={initialState} />;
     },
     { fullscreen: true },
   );

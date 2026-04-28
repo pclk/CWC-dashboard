@@ -41,6 +41,7 @@ import {
   DEFAULT_TEMPLATE_DEFINITIONS,
   LEGACY_DEFAULT_TEMPLATE_BODIES,
 } from "@/lib/templates";
+import { syncUserCadetRecordStats } from "@/lib/cadet-record-stats";
 
 const sharedCadetSelect = {
   id: true,
@@ -585,6 +586,8 @@ export async function getActiveCadets(userId: string) {
 }
 
 export async function getCadets(userId: string) {
+  await prisma.$transaction((tx) => syncUserCadetRecordStats(tx, userId));
+
   const cadets = await prisma.cadet.findMany({
     where: { userId },
     include: {

@@ -9,10 +9,10 @@ import { cn } from "@/lib/utils";
 
 export function Sidebar({
   displayName,
-  email,
+  batchName,
 }: {
   displayName?: string | null;
-  email?: string | null;
+  batchName?: string | null;
 }) {
   const pathname = usePathname();
 
@@ -24,7 +24,7 @@ export function Sidebar({
             Cadet Wing Commander
           </p>
           <h2 className="text-xl font-semibold text-slate-900">Operations Dashboard</h2>
-          <p className="text-sm text-slate-600">{displayName || email || "Authenticated user"}</p>
+          <p className="text-sm text-slate-600">{displayName || batchName || "Authenticated user"}</p>
         </div>
 
         <nav className="mt-5 flex-1 space-y-1 overflow-y-auto pr-1">

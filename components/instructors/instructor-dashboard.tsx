@@ -4,29 +4,29 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 
 import {
-  adminDashboardLoginAction,
-  adminDashboardLogoutAction,
-  changeUserPasswordAsAdminAction,
-  type AdminOverview,
-} from "@/actions/admin";
+  changeBatchNameAsInstructorAction,
+  instructorDashboardLoginAction,
+  instructorDashboardLogoutAction,
+  type InstructorOverview,
+} from "@/actions/instructors";
 
 type PersonItem = {
   label: string;
   details?: string;
 };
 
-type AdminSection = "dashboard" | "change_password";
+type InstructorSection = "dashboard" | "settings";
 
-const ADMIN_SECTIONS: Array<{ key: AdminSection; label: string; description: string }> = [
+const INSTRUCTOR_SECTIONS: Array<{ key: InstructorSection; label: string; description: string }> = [
   {
     key: "dashboard",
     label: "Dashboard",
     description: "Strength and personnel overview",
   },
   {
-    key: "change_password",
-    label: "Change CWC password",
-    description: "Reset the account password",
+    key: "settings",
+    label: "Account settings",
+    description: "Change batch name",
   },
 ];
 
@@ -69,20 +69,30 @@ function PersonList({ emptyText, people }: { emptyText: string; people: PersonIt
   );
 }
 
-const STRENGTH_BUCKET_COLORS: Record<AdminOverview["strengthBuckets"][number]["key"], string> = {
+const STRENGTH_BUCKET_COLORS: Record<InstructorOverview["strengthBuckets"][number]["key"], string> = {
   current_fit: "#0f766e",
   current_status: "#d97706",
   not_in_camp: "#be123c",
 };
+
+type RecordHeatmapMetric = "totalDays" | "recordCount";
+
+const RECORD_HEATMAP_METRICS: Array<{
+  key: RecordHeatmapMetric;
+  label: string;
+}> = [
+  { key: "totalDays", label: "Total days" },
+  { key: "recordCount", label: "Number of records" },
+];
 
 function StrengthPieChart({
   buckets,
   selectedKey,
   onSelect,
 }: {
-  buckets: AdminOverview["strengthBuckets"];
-  selectedKey: AdminOverview["strengthBuckets"][number]["key"];
-  onSelect: (key: AdminOverview["strengthBuckets"][number]["key"]) => void;
+  buckets: InstructorOverview["strengthBuckets"];
+  selectedKey: InstructorOverview["strengthBuckets"][number]["key"];
+  onSelect: (key: InstructorOverview["strengthBuckets"][number]["key"]) => void;
 }) {
   const total = buckets.reduce((sum, bucket) => sum + bucket.count, 0);
   const selectedBucket = buckets.find((bucket) => bucket.key === selectedKey) ?? buckets[0];
@@ -105,7 +115,7 @@ function StrengthPieChart({
     {
       offset: 0,
       items: [] as Array<{
-        bucket: AdminOverview["strengthBuckets"][number];
+        bucket: InstructorOverview["strengthBuckets"][number];
         percentage: number;
         offset: number;
       }>,
@@ -213,7 +223,7 @@ function StrengthPieChart({
   );
 }
 
-function CategoryPanel({ category }: { category: AdminOverview["categories"][number] }) {
+function CategoryPanel({ category }: { category: InstructorOverview["categories"][number] }) {
   return (
     <article className="rounded-[1.5rem] border border-black/10 bg-white/92 p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -232,8 +242,117 @@ function CategoryPanel({ category }: { category: AdminOverview["categories"][num
   );
 }
 
+function getHeatmapCellColor(value: number, maxValue: number) {
+  if (value <= 0 || maxValue <= 0) {
+    return "#ffffff";
+  }
+
+  const intensity = Math.max(value / maxValue, 0.08);
+  const greenBlue = Math.round(255 - intensity * 205);
+
+  return `rgb(239, ${greenBlue}, ${greenBlue})`;
+}
+
+function RecordHeatmap({ heatmap }: { heatmap: InstructorOverview["recordHeatmap"] }) {
+  const [selectedCategory, setSelectedCategory] = useState(
+    heatmap.categories.find((category) => category.key === "MC")?.key ?? heatmap.categories[0]?.key,
+  );
+  const [metric, setMetric] = useState<RecordHeatmapMetric>("totalDays");
+  const selectedCategoryLabel =
+    heatmap.categories.find((category) => category.key === selectedCategory)?.label ?? "Record";
+  const cells = heatmap.cadets.map((cadet) => {
+    const stat = cadet.stats.find((item) => item.category === selectedCategory);
+    const value = stat?.[metric] ?? 0;
+
+    return {
+      ...cadet,
+      value,
+    };
+  });
+  const maxValue = cells.reduce((max, cell) => Math.max(max, cell.value), 0);
+
+  return (
+    <section className="rounded-[2rem] border border-black/10 bg-white/92 p-5 shadow-sm">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">Record Heatmap</h2>
+          <p className="text-sm text-slate-600">
+            Cadet shorthand intensity by selected record type and metric.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex flex-wrap gap-2">
+            {heatmap.categories.map((category) => (
+              <button
+                key={category.key}
+                type="button"
+                onClick={() => setSelectedCategory(category.key)}
+                className={`rounded-2xl px-3 py-2 text-xs font-semibold transition ${
+                  selectedCategory === category.key
+                    ? "bg-slate-950 text-white"
+                    : "border border-black/10 text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                {category.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex rounded-2xl border border-black/10 bg-white p-1">
+            {RECORD_HEATMAP_METRICS.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setMetric(item.key)}
+                className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                  metric === item.key ? "bg-teal-700 text-white" : "text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+        <span>Less</span>
+        <div className="h-3 flex-1 rounded-full border border-black/10 bg-gradient-to-r from-white to-red-600" />
+        <span>More</span>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8">
+        {cells.map((cell) => (
+          <div
+            key={cell.id}
+            title={`${cell.displayName}: ${cell.value} ${metric === "totalDays" ? "days" : "records"} of ${selectedCategoryLabel}`}
+            className="min-h-20 rounded-2xl border border-black/10 px-3 py-3 shadow-sm"
+            style={{
+              backgroundColor: getHeatmapCellColor(cell.value, maxValue),
+              color: cell.value > maxValue * 0.65 ? "#ffffff" : "#0f172a",
+            }}
+          >
+            <p className="truncate text-sm font-semibold">{cell.label}</p>
+            <p className="mt-2 text-2xl font-semibold tracking-tight">{cell.value}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider opacity-75">
+              {metric === "totalDays" ? "days" : "records"}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {!heatmap.cadets.length ? (
+        <p className="mt-4 rounded-2xl border border-dashed border-black/10 px-4 py-5 text-sm text-slate-500">
+          No cadets available for heatmap.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 const TIMELINE_TYPE_STYLES: Record<
-  AdminOverview["timeline"][number]["type"],
+  InstructorOverview["timeline"][number]["type"],
   { card: string; badge: string; bar: string; legendLabel: string }
 > = {
   status: {
@@ -272,7 +391,7 @@ function formatTimelineTimeLabel(date: Date) {
   });
 }
 
-function EventTimeline({ events }: { events: AdminOverview["timeline"] }) {
+function EventTimeline({ events }: { events: InstructorOverview["timeline"] }) {
   if (events.length === 0) {
     return (
       <section className="rounded-[2rem] border border-black/10 bg-white/92 p-5 shadow-sm">
@@ -485,29 +604,29 @@ function EventTimeline({ events }: { events: AdminOverview["timeline"] }) {
   );
 }
 
-function AdminSidebar({
+function InstructorSidebar({
   accountLabel,
   activeSection,
   onSectionChange,
   onSignOut,
 }: {
   accountLabel: string;
-  activeSection: AdminSection;
-  onSectionChange: (section: AdminSection) => void;
+  activeSection: InstructorSection;
+  onSectionChange: (section: InstructorSection) => void;
   onSignOut: () => void;
 }) {
   return (
     <aside className="rounded-[2rem] border border-black/10 bg-slate-950 p-5 text-white shadow-sm lg:sticky lg:top-6 lg:self-start">
       <div className="border-b border-white/10 pb-5">
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-teal-300">
-          Admin Console
+          Instructor Console
         </p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">CWC Admin</h1>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight">CWC Instructors</h1>
         <p className="mt-2 text-sm text-slate-300">{accountLabel}</p>
       </div>
 
       <nav className="mt-5 space-y-2">
-        {ADMIN_SECTIONS.map((section) => {
+        {INSTRUCTOR_SECTIONS.map((section) => {
           const active = section.key === activeSection;
 
           return (
@@ -534,7 +653,7 @@ function AdminSidebar({
           onClick={onSignOut}
           className="w-full rounded-2xl border border-white/15 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
         >
-          Sign out admin
+          Sign out instructor
         </button>
         <Link
           href="/"
@@ -547,20 +666,20 @@ function AdminSidebar({
   );
 }
 
-function AdminDashboardSection({
+function InstructorDashboardSection({
   overview,
   activeStrengthBucketKey,
   onStrengthBucketChange,
 }: {
-  overview: AdminOverview;
-  activeStrengthBucketKey: AdminOverview["strengthBuckets"][number]["key"];
-  onStrengthBucketChange: (key: AdminOverview["strengthBuckets"][number]["key"]) => void;
+  overview: InstructorOverview;
+  activeStrengthBucketKey: InstructorOverview["strengthBuckets"][number]["key"];
+  onStrengthBucketChange: (key: InstructorOverview["strengthBuckets"][number]["key"]) => void;
 }) {
   return (
     <div className="space-y-6">
       <section className="rounded-[2rem] border border-black/10 bg-white/92 p-6 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">
-          Admin Overview
+          Instructor Overview
         </p>
         <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
           Dashboard
@@ -587,6 +706,8 @@ function AdminDashboardSection({
 
       <EventTimeline events={overview.timeline} />
 
+      <RecordHeatmap heatmap={overview.recordHeatmap} />
+
       <section className="grid gap-4 xl:grid-cols-2">
         {overview.categories.map((category) => (
           <CategoryPanel key={category.key} category={category} />
@@ -605,133 +726,90 @@ function AdminDashboardSection({
   );
 }
 
-function ChangeCwcPasswordSection({
-  accountEmail,
+function InstructorSettingsSection({
+  batchName,
   pending,
   status,
-  passwordValues,
-  onPasswordValuesChange,
-  onSubmit,
+  batchNameValues,
+  onBatchNameValuesChange,
+  onBatchNameSubmit,
 }: {
-  accountEmail: string;
+  batchName: string;
   pending: boolean;
   status: string | null;
-  passwordValues: {
-    adminPassword: string;
-    newPassword: string;
-    confirmPassword: string;
+  batchNameValues: {
+    batchName: string;
   };
-  onPasswordValuesChange: (values: {
-    adminPassword: string;
-    newPassword: string;
-    confirmPassword: string;
+  onBatchNameValuesChange: (values: {
+    batchName: string;
   }) => void;
-  onSubmit: () => void;
+  onBatchNameSubmit: () => void;
 }) {
   return (
-    <section className="rounded-[2rem] border border-black/10 bg-white/92 p-5 shadow-sm">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">
-            Admin Tool
-          </p>
-          <h2 className="mt-2 text-2xl font-semibold text-slate-900">Change CWC password</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Resets the password for {accountEmail} and signs out that account&apos;s active
-            sessions.
-          </p>
-        </div>
-        {status ? <span className="text-sm font-medium text-slate-500">{status}</span> : null}
-      </div>
-
-      <div className="mt-5 grid gap-4 lg:grid-cols-3">
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-slate-700" htmlFor="resetAdminPassword">
-            Admin Password
-          </label>
-          <input
-            id="resetAdminPassword"
-            type="password"
-            autoComplete="current-password"
-            value={passwordValues.adminPassword}
-            onChange={(event) =>
-              onPasswordValuesChange({
-                ...passwordValues,
-                adminPassword: event.target.value,
-              })
-            }
-            className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-          />
+    <div className="space-y-4">
+      <section className="rounded-[2rem] border border-black/10 bg-white/92 p-5 shadow-sm">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">
+              Instructor Tool
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold text-slate-900">Change batch name</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Current batch name: {batchName}
+            </p>
+          </div>
+          {status ? <span className="text-sm font-medium text-slate-500">{status}</span> : null}
         </div>
 
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-slate-700" htmlFor="newPassword">
-            New Password
-          </label>
-          <input
-            id="newPassword"
-            type="password"
-            autoComplete="new-password"
-            value={passwordValues.newPassword}
-            onChange={(event) =>
-              onPasswordValuesChange({
-                ...passwordValues,
-                newPassword: event.target.value,
-              })
-            }
-            className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-          />
+        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700" htmlFor="newBatchName">
+              New batch name
+            </label>
+            <input
+              id="newBatchName"
+              type="text"
+              autoComplete="username"
+              value={batchNameValues.batchName}
+              onChange={(event) =>
+                onBatchNameValuesChange({
+                  ...batchNameValues,
+                  batchName: event.target.value,
+                })
+              }
+              className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
+            />
+          </div>
         </div>
 
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-slate-700" htmlFor="confirmNewPassword">
-            Confirm New Password
-          </label>
-          <input
-            id="confirmNewPassword"
-            type="password"
-            autoComplete="new-password"
-            value={passwordValues.confirmPassword}
-            onChange={(event) =>
-              onPasswordValuesChange({
-                ...passwordValues,
-                confirmPassword: event.target.value,
-              })
-            }
-            className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-          />
-        </div>
-      </div>
-
-      <button
-        type="button"
-        disabled={pending}
-        onClick={onSubmit}
-        className="mt-5 rounded-2xl bg-teal-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
-      >
-        Change CWC password
-      </button>
-    </section>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={onBatchNameSubmit}
+          className="mt-5 rounded-2xl bg-teal-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
+        >
+          Change batch name
+        </button>
+      </section>
+    </div>
   );
 }
 
-export function AdminDashboard({ initialOverview = null }: { initialOverview?: AdminOverview | null }) {
+export function InstructorDashboard({ initialOverview = null }: { initialOverview?: InstructorOverview | null }) {
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState<string | null>(null);
-  const [overview, setOverview] = useState<AdminOverview | null>(initialOverview);
-  const [activeSection, setActiveSection] = useState<AdminSection>("dashboard");
+  const [overview, setOverview] = useState<InstructorOverview | null>(initialOverview);
+  const [activeSection, setActiveSection] = useState<InstructorSection>("dashboard");
   const [activeStrengthBucketKey, setActiveStrengthBucketKey] =
-    useState<AdminOverview["strengthBuckets"][number]["key"]>(
+    useState<InstructorOverview["strengthBuckets"][number]["key"]>(
       initialOverview?.strengthBuckets.find((bucket) => bucket.count > 0)?.key ?? "current_fit",
     );
   const [loginValues, setLoginValues] = useState({
-    email: initialOverview?.account.email ?? "",
-    adminPassword: "",
+    batchName: initialOverview?.account.batchName ?? "",
+    instructorPassword: "",
   });
-  const [passwordValues, setPasswordValues] = useState({
-    adminPassword: "",
-    newPassword: "",
-    confirmPassword: "",
+  const [batchNameValues, setBatchNameValues] = useState({
+    batchName: initialOverview?.account.batchName ?? "",
   });
 
   if (!overview) {
@@ -740,14 +818,14 @@ export function AdminDashboard({ initialOverview = null }: { initialOverview?: A
         <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
           <section className="space-y-5">
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-teal-700">
-              Admin Console
+              Instructor Console
             </p>
             <div className="space-y-3">
               <h1 className="max-w-xl text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">
                 Instructor overview for CWC operations.
               </h1>
               <p className="max-w-2xl text-base leading-7 text-slate-600">
-                Sign in with the account email and admin password to view strength, MC, MA/OA,
+                Sign in with the batch name and instructor password to view strength, MC, MA/OA,
                 appointments, and current personnel status.
               </p>
             </div>
@@ -762,7 +840,7 @@ export function AdminDashboard({ initialOverview = null }: { initialOverview?: A
           <form
             action={() => {
               startTransition(async () => {
-                const result = await adminDashboardLoginAction(loginValues);
+                const result = await instructorDashboardLoginAction(loginValues);
 
                 if (result.ok && result.overview) {
                   setOverview(result.overview);
@@ -773,15 +851,18 @@ export function AdminDashboard({ initialOverview = null }: { initialOverview?: A
                   setActiveSection("dashboard");
                   setLoginValues((current) => ({
                     ...current,
-                    adminPassword: "",
+                    instructorPassword: "",
                   }));
+                  setBatchNameValues({
+                    batchName: result.overview.account.batchName,
+                  });
                   setStatus(null);
                   return;
                 }
 
                 setStatus(
                   result.ok
-                    ? result.message ?? "Admin login successful."
+                    ? result.message ?? "Instructor login successful."
                     : result.error ?? "Unable to sign in.",
                 );
               });
@@ -789,26 +870,26 @@ export function AdminDashboard({ initialOverview = null }: { initialOverview?: A
             className="space-y-4 rounded-3xl border border-black/10 bg-white/90 p-6 shadow-sm"
           >
             <div className="space-y-1">
-              <h2 className="text-2xl font-semibold tracking-tight">Admin sign in</h2>
+              <h2 className="text-2xl font-semibold tracking-tight">Instructor sign in</h2>
               <p className="text-sm text-slate-600">
-                This unlocks the admin dashboard. It does not sign into the user app.
+                This unlocks the instructor dashboard. It does not sign into the user app.
               </p>
             </div>
 
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-700" htmlFor="adminEmail">
-                Account Email
+              <label className="block text-sm font-medium text-slate-700" htmlFor="instructorBatchName">
+                Batch name
               </label>
               <input
-                id="adminEmail"
-                type="email"
-                autoComplete="email"
+                id="instructorBatchName"
+                type="text"
+                autoComplete="username"
                 required
-                value={loginValues.email}
+                value={loginValues.batchName}
                 onChange={(event) =>
                   setLoginValues((current) => ({
                     ...current,
-                    email: event.target.value,
+                    batchName: event.target.value,
                   }))
                 }
                 className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none transition focus:border-teal-700"
@@ -816,19 +897,19 @@ export function AdminDashboard({ initialOverview = null }: { initialOverview?: A
             </div>
 
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-700" htmlFor="adminPassword">
-                Admin Password
+              <label className="block text-sm font-medium text-slate-700" htmlFor="instructorPassword">
+                Instructor Password
               </label>
               <input
-                id="adminPassword"
+                id="instructorPassword"
                 type="password"
                 autoComplete="current-password"
                 required
-                value={loginValues.adminPassword}
+                value={loginValues.instructorPassword}
                 onChange={(event) =>
                   setLoginValues((current) => ({
                     ...current,
-                    adminPassword: event.target.value,
+                    instructorPassword: event.target.value,
                   }))
                 }
                 className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none transition focus:border-teal-700"
@@ -850,44 +931,50 @@ export function AdminDashboard({ initialOverview = null }: { initialOverview?: A
     );
   }
 
-  const accountLabel = overview.account.displayName || overview.account.email;
+  const accountLabel = overview.account.displayName || overview.account.batchName;
 
-  const handleAdminSignOut = () => {
+  const handleInstructorSignOut = () => {
     startTransition(async () => {
-      await adminDashboardLogoutAction();
+      await instructorDashboardLogoutAction();
       setOverview(null);
       setStatus(null);
-      setPasswordValues({
-        adminPassword: "",
-        newPassword: "",
-        confirmPassword: "",
+      setBatchNameValues({
+        batchName: "",
       });
       setActiveStrengthBucketKey("current_fit");
       setActiveSection("dashboard");
     });
   };
 
-  const handlePasswordSubmit = () => {
+  const handleBatchNameSubmit = () => {
     startTransition(async () => {
-      const result = await changeUserPasswordAsAdminAction({
-        email: overview.account.email,
-        adminPassword: passwordValues.adminPassword,
-        newPassword: passwordValues.newPassword,
-        confirmPassword: passwordValues.confirmPassword,
-      });
+      const result = await changeBatchNameAsInstructorAction(batchNameValues);
 
-      if (result.ok) {
-        setPasswordValues({
-          adminPassword: "",
-          newPassword: "",
-          confirmPassword: "",
+      if (result.ok && result.batchName) {
+        setOverview((current) =>
+          current
+            ? {
+                ...current,
+                account: {
+                  ...current.account,
+                  batchName: result.batchName ?? current.account.batchName,
+                },
+              }
+            : current,
+        );
+        setBatchNameValues({
+          batchName: result.batchName,
         });
+        setLoginValues((current) => ({
+          ...current,
+          batchName: result.batchName ?? current.batchName,
+        }));
       }
 
       setStatus(
         result.ok
-          ? result.message ?? "Password updated."
-          : result.error ?? "Unable to update password.",
+          ? result.message ?? "Batch name updated."
+          : result.error ?? "Unable to update batch name.",
       );
     });
   };
@@ -895,27 +982,27 @@ export function AdminDashboard({ initialOverview = null }: { initialOverview?: A
   return (
     <main className="mx-auto min-h-screen w-full max-w-7xl px-4 py-8 sm:px-6">
       <div className="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
-        <AdminSidebar
+        <InstructorSidebar
           accountLabel={accountLabel}
           activeSection={activeSection}
           onSectionChange={setActiveSection}
-          onSignOut={handleAdminSignOut}
+          onSignOut={handleInstructorSignOut}
         />
 
         {activeSection === "dashboard" ? (
-          <AdminDashboardSection
+          <InstructorDashboardSection
             overview={overview}
             activeStrengthBucketKey={activeStrengthBucketKey}
             onStrengthBucketChange={setActiveStrengthBucketKey}
           />
         ) : (
-          <ChangeCwcPasswordSection
-            accountEmail={overview.account.email}
+          <InstructorSettingsSection
+            batchName={overview.account.batchName}
             pending={pending}
             status={status}
-            passwordValues={passwordValues}
-            onPasswordValuesChange={setPasswordValues}
-            onSubmit={handlePasswordSubmit}
+            batchNameValues={batchNameValues}
+            onBatchNameValuesChange={setBatchNameValues}
+            onBatchNameSubmit={handleBatchNameSubmit}
           />
         )}
       </div>

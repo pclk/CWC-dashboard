@@ -202,7 +202,7 @@ export function SettingsForm({
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Login Sessions</h2>
           <p className="text-sm text-slate-600">
-            Recent sign-ins are tracked by device, browser, IP, and last activity. Admin password
+            Recent sign-ins are tracked by device, browser, IP, and last activity. Password
             resets revoke active sessions for the affected account.
           </p>
         </div>

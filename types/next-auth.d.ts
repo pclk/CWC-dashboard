@@ -5,6 +5,7 @@ declare module "next-auth" {
     user: DefaultSession["user"] & {
       id: string;
       sessionId: string;
+      batchName?: string | null;
     };
   }
 
@@ -12,6 +13,7 @@ declare module "next-auth" {
     id: string;
     sessionId?: string | null;
     displayName?: string | null;
+    batchName?: string | null;
     sessionPasswordFingerprint?: string | null;
   }
 }
@@ -21,6 +23,7 @@ declare module "next-auth/jwt" {
     userId?: string;
     sessionId?: string | null;
     displayName?: string | null;
+    batchName?: string | null;
     sessionPasswordFingerprint?: string | null;
   }
 }
