@@ -20,7 +20,6 @@ const categoryDefaults: Record<string, { affectsStrength: boolean; countsNotInCa
 
 type CadetOption = {
   id: string;
-  rank: string;
   displayName: string;
   active: boolean;
 };

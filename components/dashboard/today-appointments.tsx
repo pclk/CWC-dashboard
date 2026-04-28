@@ -8,7 +8,6 @@ type AppointmentItem = {
   venue: string | null;
   appointmentAt: Date;
   cadet: {
-    rank: string;
     displayName: string;
   } | null;
 };
@@ -37,7 +36,7 @@ export function TodayAppointments({ appointments }: { appointments: AppointmentI
               className="rounded-2xl border border-black/10 bg-slate-50 px-4 py-3"
             >
               <p className="text-sm font-semibold text-slate-900">
-                {appointment.cadet ? `${appointment.cadet.rank} ${appointment.cadet.displayName}` : "General"}
+                {appointment.cadet ? appointment.cadet.displayName : "General"}
               </p>
               <p className="text-sm text-slate-700">{appointment.title}</p>
               <p className="mt-1 text-sm text-slate-500">

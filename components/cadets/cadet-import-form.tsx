@@ -82,9 +82,9 @@ export function CadetImportForm() {
       </div>
 
       <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-        <p>Supported headers: rank, displayName, shorthand, active, sortOrder, notes.</p>
+        <p>Supported headers: displayName, shorthand, active, sortOrder, notes.</p>
         <p>Also accepted: name, display name, nickname, short name, status, order, remarks.</p>
-        <p>Blank rank, active, and sortOrder cells default to ME4T, true, and 0.</p>
+        <p>Blank active and sortOrder cells default to true and 0.</p>
       </div>
 
       {error ? <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p> : null}

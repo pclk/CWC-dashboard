@@ -9,7 +9,6 @@ import { formatCompactDateTimeInputValue } from "@/lib/date";
 
 type CadetOption = {
   id: string;
-  rank: string;
   displayName: string;
   active: boolean;
 };

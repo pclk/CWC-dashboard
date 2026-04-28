@@ -18,7 +18,6 @@ export async function updateAnnouncementDraftAction(input: {
   location?: string;
   activity?: string;
   recipient?: string;
-  rank?: string;
   name?: string;
   firstTime?: boolean;
   isPtDay?: boolean;
@@ -65,7 +64,6 @@ export async function updateAnnouncementDraftAction(input: {
                 : parsed.data.type === "REQUEST_DI_FP"
                   ? {
                       announcementRequestDiRecipient: parsed.data.recipient,
-                      announcementRequestDiRank: parsed.data.rank,
                       announcementRequestDiName: parsed.data.name,
                       announcementRequestDiLocation: parsed.data.location,
                       announcementRequestDiTime: parsed.data.time,
@@ -73,7 +71,6 @@ export async function updateAnnouncementDraftAction(input: {
                     }
                   : {
                       announcementRequestLpRecipient: parsed.data.recipient,
-                      announcementRequestLpRank: parsed.data.rank,
                       announcementRequestLpName: parsed.data.name,
                       announcementRequestLpLocation: parsed.data.location,
                       announcementRequestLpTime: parsed.data.time,

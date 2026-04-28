@@ -9,13 +9,12 @@ function normalizeWhitespace(text: string) {
 }
 
 function buildFirstTimeIntro(input: {
-  rank: string;
   name: string;
   cohortName: string;
   firstTime: boolean;
 }) {
   return input.firstTime
-    ? `I am ${input.rank} ${input.name} from ${input.cohortName}, `
+    ? `I am ${input.name} from ${input.cohortName}, `
     : "";
 }
 
@@ -23,7 +22,6 @@ export function generateRequestDiMessage(
   template: string,
   input: {
     recipient: string;
-    rank: string;
     name: string;
     cohortName: string;
     location: string;
@@ -47,7 +45,6 @@ export function generateRequestLpMessage(
   template: string,
   input: {
     recipient: string;
-    rank: string;
     name: string;
     cohortName: string;
     location: string;

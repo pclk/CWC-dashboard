@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 
 type CadetOption = {
   id: string;
-  rank: string;
   displayName: string;
   shorthand?: string | null;
   active: boolean;
@@ -21,11 +20,8 @@ function getCadetSearchValues(cadet: CadetOption) {
   return Array.from(
     new Set(
       [
-        cadet.rank,
         fullDisplayName,
         shorthand,
-        [cadet.rank, fullDisplayName].filter(Boolean).join(" "),
-        shorthand ? [cadet.rank, shorthand].filter(Boolean).join(" ") : null,
       ]
         .filter((value): value is string => Boolean(value))
         .map((value) => value.toLowerCase()),
@@ -42,10 +38,10 @@ function getCadetLabel(cadet: CadetOption) {
   const shorthand = getCadetShorthand(cadet);
 
   if (shorthand && shorthand.toLowerCase() !== fullDisplayName.toLowerCase()) {
-    return `${cadet.rank} ${fullDisplayName} (${shorthand})`;
+    return `${fullDisplayName} (${shorthand})`;
   }
 
-  return `${cadet.rank} ${fullDisplayName}`;
+  return fullDisplayName;
 }
 
 function syncCadetInputValidity(

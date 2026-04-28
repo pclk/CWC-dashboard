@@ -2,7 +2,6 @@ import { z } from "zod";
 
 export const cadetSchema = z.object({
   id: z.string().optional(),
-  rank: z.string().trim().min(1).max(32),
   displayName: z.string().trim().min(1).max(120),
   shorthand: z.string().trim().max(120).optional().or(z.literal("")),
   active: z.boolean(),

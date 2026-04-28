@@ -9,7 +9,6 @@ import { formatCompactDmyHm } from "@/lib/date";
 
 type CadetOption = {
   id: string;
-  rank: string;
   displayName: string;
   active: boolean;
 };
@@ -26,7 +25,6 @@ type AppointmentRow = {
   affectsEveningStrength: boolean;
   completed: boolean;
   cadet: {
-    rank: string;
     displayName: string;
   } | null;
 };
@@ -155,9 +153,7 @@ export function AppointmentsTable({
                 filteredAppointments.map((appointment) => (
                   <tr key={appointment.id}>
                     <td className="px-4 py-3 font-medium text-slate-900">
-                      {appointment.cadet
-                        ? `${appointment.cadet.rank} ${appointment.cadet.displayName}`
-                        : "General"}
+                      {appointment.cadet ? appointment.cadet.displayName : "General"}
                     </td>
                     <td className="px-4 py-3">{appointment.title}</td>
                     <td className="px-4 py-3 text-slate-600">{appointment.venue || "-"}</td>

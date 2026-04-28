@@ -44,7 +44,6 @@ import {
 
 const sharedCadetSelect = {
   id: true,
-  rank: true,
   displayName: true,
   shorthand: true,
   active: true,
@@ -135,7 +134,6 @@ function sortDutyInstructors(entries: DutyInstructorRow[]) {
   return [...entries].sort(
     (left, right) =>
       left.dutyDate.getTime() - right.dutyDate.getTime() ||
-      left.rank.localeCompare(right.rank) ||
       left.name.localeCompare(right.name),
   );
 }
@@ -149,10 +147,9 @@ function sortBunks(bunks: Bunk[]) {
   );
 }
 
-function toPreferredCadetOption(cadet: Pick<Cadet, "id" | "rank" | "displayName" | "shorthand">) {
+function toPreferredCadetOption(cadet: Pick<Cadet, "id" | "displayName" | "shorthand">) {
   return {
     id: cadet.id,
-    rank: cadet.rank,
     displayName: getCadetPreferredName(cadet),
     fullDisplayName: cadet.displayName,
     shorthand: cadet.shorthand,
@@ -253,7 +250,6 @@ function buildAppointmentSummary(
 
 function toNamedRecordItem(record: OperationalRecordWithCadet) {
   return {
-    rank: record.cadet.rank,
     name: record.cadet.displayName,
     details: buildRecordDetails(record),
     startAt: record.startAt,
@@ -406,7 +402,6 @@ function splitAppointmentsForParade(
     maOaAppointments: eligibleAppointments
       .filter((appointment) => appointment.appointmentAt >= start && appointment.appointmentAt <= end)
       .map((appointment) => ({
-        rank: appointment.cadet?.rank ?? "N/A",
         name: appointment.cadet?.displayName ?? "Unknown",
         title: appointment.title,
         venue: appointment.venue,
@@ -415,7 +410,6 @@ function splitAppointmentsForParade(
     upcomingAppointments: eligibleAppointments
       .filter((appointment) => appointment.appointmentAt > end)
       .map((appointment) => ({
-        rank: appointment.cadet?.rank ?? "N/A",
         name: appointment.cadet?.displayName ?? "Unknown",
         title: appointment.title,
         venue: appointment.venue,
@@ -593,6 +587,11 @@ export async function getActiveCadets(userId: string) {
 export async function getCadets(userId: string) {
   const cadets = await prisma.cadet.findMany({
     where: { userId },
+    include: {
+      recordStats: {
+        orderBy: [{ category: "asc" }],
+      },
+    },
     orderBy: [{ active: "desc" }, { sortOrder: "asc" }, { displayName: "asc" }],
   });
 
@@ -958,7 +957,6 @@ export async function buildBookInInput(userId: string): Promise<BookInInput> {
   const maOaAppointments = sortAppointments(
     todayAppointments.filter((appointment) => appointment.cadetId && appointment.cadet?.active),
   ).map((appointment) => ({
-    rank: appointment.cadet?.rank ?? "N/A",
     name: appointment.cadet?.displayName ?? "Unknown",
     details: buildAppointmentSummary(appointment),
   }));

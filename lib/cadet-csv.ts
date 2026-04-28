@@ -1,7 +1,6 @@
 import { cadetSchema } from "@/lib/validators/cadet";
 
 export type ParsedCadetCsvRow = {
-  rank: string;
   displayName: string;
   shorthand?: string;
   active: boolean;
@@ -12,9 +11,8 @@ export type ParsedCadetCsvRow = {
 
 const HEADER_ALIASES: Record<
   string,
-  "rank" | "displayName" | "shorthand" | "active" | "sortOrder" | "notes"
+  "displayName" | "shorthand" | "active" | "sortOrder" | "notes"
 > = {
-  rank: "rank",
   displayname: "displayName",
   name: "displayName",
   shorthand: "shorthand",
@@ -53,7 +51,6 @@ export function parseCadetCsv(csvText: string): ParsedCadetCsvRow[] {
       continue;
     }
 
-    const rawRank = getCell(row, headerIndexes.rank);
     const rawDisplayName = getCell(row, headerIndexes.displayName);
     const rawShorthand = getCell(row, headerIndexes.shorthand);
     const rawActive = getCell(row, headerIndexes.active);
@@ -61,7 +58,6 @@ export function parseCadetCsv(csvText: string): ParsedCadetCsvRow[] {
     const rawNotes = getCell(row, headerIndexes.notes);
 
     const parsed = cadetSchema.safeParse({
-      rank: rawRank || "ME4T",
       displayName: rawDisplayName,
       shorthand: rawShorthand,
       active: parseActiveValue(rawActive, lineNumber),
@@ -74,7 +70,6 @@ export function parseCadetCsv(csvText: string): ParsedCadetCsvRow[] {
     }
 
     parsedRows.push({
-      rank: parsed.data.rank,
       displayName: parsed.data.displayName,
       shorthand: parsed.data.shorthand || undefined,
       active: parsed.data.active,
@@ -89,7 +84,7 @@ export function parseCadetCsv(csvText: string): ParsedCadetCsvRow[] {
 
 function getHeaderIndexes(headers: string[]) {
   const indexes: Partial<
-    Record<"rank" | "displayName" | "shorthand" | "active" | "sortOrder" | "notes", number>
+    Record<"displayName" | "shorthand" | "active" | "sortOrder" | "notes", number>
   > = {};
 
   headers.forEach((header, index) => {

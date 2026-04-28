@@ -19,9 +19,7 @@ export default async function AnnouncementsPage() {
       getSettingsAndTemplates(userId),
       getDutyInstructorForDate(userId, now),
     ]);
-    const dutyInstructorActive = dutyInstructor
-      ? [dutyInstructor.rank, dutyInstructor.name].filter(Boolean).join(" ").trim()
-      : null;
+    const dutyInstructorActive = dutyInstructor?.name ?? null;
     const dutyInstructorReserve = dutyInstructor?.reserve ?? null;
 
     return (
@@ -47,7 +45,6 @@ export default async function AnnouncementsPage() {
             defaultLocation="under block 315e"
             defaultTime={DEFAULT_ANNOUNCEMENT_TIMES.FIRST_PARADE}
             initialRecipient={settings.announcementRequestDiRecipient}
-            initialRank={settings.announcementRequestDiRank}
             initialName={settings.announcementRequestDiName}
             initialLocation={settings.announcementRequestDiLocation}
             initialTime={settings.announcementRequestDiTime}
@@ -116,7 +113,6 @@ export default async function AnnouncementsPage() {
             defaultLocation="outside spectrum mess"
             defaultTime={DEFAULT_ANNOUNCEMENT_TIMES.REQUEST_LP}
             initialRecipient={settings.announcementRequestLpRecipient}
-            initialRank={settings.announcementRequestLpRank}
             initialName={settings.announcementRequestLpName}
             initialLocation={settings.announcementRequestLpLocation}
             initialTime={settings.announcementRequestLpTime}

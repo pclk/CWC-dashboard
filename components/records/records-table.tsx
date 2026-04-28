@@ -11,7 +11,6 @@ import { RecordForm } from "@/components/records/record-form";
 
 type CadetOption = {
   id: string;
-  rank: string;
   displayName: string;
   active: boolean;
 };
@@ -30,7 +29,6 @@ type RecordRow = {
   resolutionState: "ACTIVE" | "EXPIRED_PENDING_CONFIRMATION" | "RESOLVED";
   sortOrder: number;
   cadet: {
-    rank: string;
     displayName: string;
   };
 };
@@ -105,7 +103,7 @@ export function RecordsTable({
                 countsNotInCamp: true,
                 resolutionState: "ACTIVE",
                 sortOrder: 0,
-                cadet: { rank: "", displayName: "" },
+                cadet: { displayName: "" },
               })
             }
             className="rounded-2xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-teal-800"
@@ -157,7 +155,7 @@ export function RecordsTable({
             <option value="ALL">All cadets</option>
             {cadets.map((cadet) => (
               <option key={cadet.id} value={cadet.id}>
-                {cadet.rank} {cadet.displayName}
+                {cadet.displayName}
               </option>
             ))}
           </select>
@@ -196,7 +194,7 @@ export function RecordsTable({
                 filteredRecords.map((record) => (
                   <tr key={record.id}>
                     <td className="px-4 py-3 font-medium text-slate-900">
-                      {record.cadet.rank} {record.cadet.displayName}
+                      {record.cadet.displayName}
                     </td>
                     <td className="px-4 py-3">{getRecordCategoryLabel(record.category)}</td>
                     <td className="max-w-sm px-4 py-3 text-slate-600">

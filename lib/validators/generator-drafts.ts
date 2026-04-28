@@ -10,7 +10,6 @@ export const announcementDraftSchema = z.object({
   location: z.string().trim().max(160).optional().default(""),
   activity: z.string().trim().max(120).optional().default(""),
   recipient: z.string().trim().max(40).optional().default(""),
-  rank: z.string().trim().max(40).optional().default(""),
   name: z.string().trim().max(120).optional().default(""),
   firstTime: z.boolean().optional().default(false),
   isPtDay: z.boolean().optional().default(false),

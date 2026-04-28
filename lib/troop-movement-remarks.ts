@@ -6,7 +6,6 @@ import {
 } from "@/lib/cadet-names";
 
 export type TroopMovementCadetOption = {
-  rank?: string | null;
   displayName: string;
   shorthand?: string | null;
   fullDisplayName?: string | null;

@@ -3,6 +3,7 @@
 import { ResolutionState } from "@prisma/client";
 
 import { failure, parseCheckbox, parseNumber, parseOptionalString, revalidateOperationalPages, success, type ActionResult } from "@/actions/helpers";
+import { syncCadetRecordStats } from "@/lib/cadet-record-stats";
 import { parseSingaporeDateInputToUtc } from "@/lib/date";
 import { assertCadetOwnership, assertRecordOwnership } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -59,41 +60,58 @@ export async function upsertRecordAction(formData: FormData): Promise<ActionResu
   if (parsed.data.id) {
     await assertRecordOwnership(userId, parsed.data.id);
 
-    await prisma.cadetRecord.update({
-      where: {
-        id: parsed.data.id,
-      },
-      data: {
-        cadetId: parsed.data.cadetId,
-        category: parsed.data.category,
-        title: parsed.data.title || null,
-        details: parsed.data.details || null,
-        startAt,
-        endAt,
-        unknownEndTime: ignoresTiming ? false : parsed.data.unknownEndTime,
-        affectsStrength: parsed.data.affectsStrength,
-        countsNotInCamp: parsed.data.countsNotInCamp,
-        sortOrder: parsed.data.sortOrder,
-        resolutionState,
-        resolvedAt: resolutionState === ResolutionState.RESOLVED ? new Date() : null,
-      },
+    await prisma.$transaction(async (tx) => {
+      const previousRecord = await tx.cadetRecord.findUniqueOrThrow({
+        where: {
+          id: parsed.data.id,
+        },
+        select: {
+          cadetId: true,
+        },
+      });
+
+      await tx.cadetRecord.update({
+        where: {
+          id: parsed.data.id,
+        },
+        data: {
+          cadetId: parsed.data.cadetId,
+          category: parsed.data.category,
+          title: parsed.data.title || null,
+          details: parsed.data.details || null,
+          startAt,
+          endAt,
+          unknownEndTime: ignoresTiming ? false : parsed.data.unknownEndTime,
+          affectsStrength: parsed.data.affectsStrength,
+          countsNotInCamp: parsed.data.countsNotInCamp,
+          sortOrder: parsed.data.sortOrder,
+          resolutionState,
+          resolvedAt: resolutionState === ResolutionState.RESOLVED ? new Date() : null,
+        },
+      });
+
+      await syncCadetRecordStats(tx, userId, [previousRecord.cadetId, parsed.data.cadetId]);
     });
   } else {
-    await prisma.cadetRecord.create({
-      data: {
-        userId,
-        cadetId: parsed.data.cadetId,
-        category: parsed.data.category,
-        title: parsed.data.title || null,
-        details: parsed.data.details || null,
-        startAt,
-        endAt,
-        unknownEndTime: ignoresTiming ? false : parsed.data.unknownEndTime,
-        affectsStrength: parsed.data.affectsStrength,
-        countsNotInCamp: parsed.data.countsNotInCamp,
-        sortOrder: parsed.data.sortOrder,
-        resolutionState,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.cadetRecord.create({
+        data: {
+          userId,
+          cadetId: parsed.data.cadetId,
+          category: parsed.data.category,
+          title: parsed.data.title || null,
+          details: parsed.data.details || null,
+          startAt,
+          endAt,
+          unknownEndTime: ignoresTiming ? false : parsed.data.unknownEndTime,
+          affectsStrength: parsed.data.affectsStrength,
+          countsNotInCamp: parsed.data.countsNotInCamp,
+          sortOrder: parsed.data.sortOrder,
+          resolutionState,
+        },
+      });
+
+      await syncCadetRecordStats(tx, userId, [parsed.data.cadetId]);
     });
   }
 
@@ -141,10 +159,23 @@ export async function deleteRecordAction(formData: FormData): Promise<ActionResu
 
   await assertRecordOwnership(userId, parsed.data.id);
 
-  await prisma.cadetRecord.delete({
-    where: {
-      id: parsed.data.id,
-    },
+  await prisma.$transaction(async (tx) => {
+    const record = await tx.cadetRecord.findUniqueOrThrow({
+      where: {
+        id: parsed.data.id,
+      },
+      select: {
+        cadetId: true,
+      },
+    });
+
+    await tx.cadetRecord.delete({
+      where: {
+        id: parsed.data.id,
+      },
+    });
+
+    await syncCadetRecordStats(tx, userId, [record.cadetId]);
   });
 
   revalidateOperationalPages();

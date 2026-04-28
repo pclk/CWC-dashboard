@@ -12,7 +12,6 @@ export type NightStudyMode = (typeof NIGHT_STUDY_MODES)[number];
 
 export type NightStudyCadet = {
   id: string;
-  rank?: string | null;
   displayName: string;
   shorthand?: string | null;
   fullDisplayName?: string | null;
@@ -27,7 +26,6 @@ export type NightStudyGroupCounts = Record<NightStudyAssignmentGroup, number>;
 export type NightStudyRosterPerson = {
   id: string;
   name: string;
-  rank?: string | null;
   shortLabel?: string | null;
   fullName?: string | null;
   assignedGroup: NightStudyAssignmentGroup;
@@ -263,7 +261,6 @@ export function buildNightStudyRosterPeople(input: {
     return {
       id: cadet.id,
       name,
-      rank: cadet.rank,
       shortLabel,
       fullName: normalizeName(fullName) === normalizedName ? null : fullName,
       assignedGroup,
@@ -296,7 +293,7 @@ export function filterNightStudyRosterPeople(
   return people.filter((person) => {
     const matchesSearch =
       query === "" ||
-      [person.name, person.rank, person.shortLabel, person.fullName]
+      [person.name, person.shortLabel, person.fullName]
         .filter((value): value is string => Boolean(value))
         .some((value) => value.toLowerCase().includes(query));
     const matchesFilter = filterGroup === "all" ? true : person.assignedGroup === filterGroup;
@@ -384,7 +381,7 @@ export function buildNightStudySummaryText(input: {
     .map((group) => {
       const members = input.people
         .filter((person) => person.assignedGroup === group.id)
-        .map((person) => (person.rank ? `${person.rank} ${person.name}` : person.name));
+        .map((person) => person.name);
 
       return [`${group.label} (${members.length})`, ...(members.length ? members : ["No members"])].join(
         "\n",

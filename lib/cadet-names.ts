@@ -1,5 +1,4 @@
 type CadetNameSource = {
-  rank?: string | null;
   displayName: string;
   shorthand?: string | null;
   fullDisplayName?: string | null;
@@ -48,19 +47,9 @@ export function getCadetPreferredName(cadet: CadetNameSource) {
 }
 
 export function getCadetNameAliases(cadet: CadetNameSource) {
-  const baseNames = dedupeCadetNames([
+  return dedupeCadetNames([
     getCadetPreferredName(cadet),
     getCadetFullDisplayName(cadet),
     getCadetShorthand(cadet),
-  ]);
-  const rank = normalizeCadetText(cadet.rank);
-
-  if (!rank) {
-    return baseNames;
-  }
-
-  return dedupeCadetNames([
-    ...baseNames,
-    ...baseNames.map((name) => `${rank} ${name}`),
   ]);
 }

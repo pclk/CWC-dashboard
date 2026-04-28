@@ -7,7 +7,6 @@ import { upsertCadetAction } from "@/actions/cadets";
 
 type CadetFormValues = {
   id?: string;
-  rank: string;
   displayName: string;
   shorthand?: string | null;
   active: boolean;
@@ -69,16 +68,6 @@ export function CadetForm({
       <input type="hidden" name="active" value={String(active)} />
 
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-slate-700">Rank</label>
-          <input
-            name="rank"
-            defaultValue={cadet?.rank ?? "ME4T"}
-            required
-            className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-          />
-        </div>
-
         <div className="space-y-2">
           <label className="block text-sm font-medium text-slate-700">Display Name</label>
           <input
