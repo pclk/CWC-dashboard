@@ -15,7 +15,6 @@ type ParsedDutyInstructorEntry =
   | {
       ok: true;
       dutyDate: Date;
-      rank: string;
       name: string;
       reserve: string | null;
     }
@@ -27,7 +26,6 @@ type ParsedDutyInstructorEntry =
 type ParsedDutyInstructorIdentity =
   | {
       ok: true;
-      rank: string;
       name: string;
     }
   | {
@@ -36,27 +34,18 @@ type ParsedDutyInstructorIdentity =
     };
 
 function parseDutyInstructorActiveText(activeText: string): ParsedDutyInstructorIdentity {
-  const parts = activeText.split(/\s+/).filter(Boolean);
+  const name = activeText.trim().replace(/\s+/g, " ");
 
-  if (!parts.length) {
+  if (!name) {
     return {
       ok: false,
       error: "Active is required.",
     };
   }
 
-  if (parts.length === 1) {
-    return {
-      ok: true,
-      rank: "",
-      name: parts[0],
-    };
-  }
-
   return {
     ok: true,
-    rank: parts[0],
-    name: parts.slice(1).join(" "),
+    name,
   };
 }
 
@@ -69,7 +58,7 @@ function parseDutyInstructorEntryLine(entryText: string): ParsedDutyInstructorEn
   if (segments.length < 2 || segments.length > 3) {
     return {
       ok: false,
-      error: "Use `Date - Rank Name - Optional Reserve`.",
+      error: "Use `Date - Name - Optional Reserve`.",
     };
   }
 
@@ -102,7 +91,6 @@ function parseDutyInstructorEntryLine(entryText: string): ParsedDutyInstructorEn
   return {
     ok: true,
     dutyDate,
-    rank: parsedActive.rank,
     name: parsedActive.name,
     reserve: reserveText || null,
   };
@@ -174,7 +162,6 @@ export async function upsertDutyInstructorAction(formData: FormData): Promise<Ac
             {
               ok: true as const,
               dutyDate,
-              rank: parsedActive.rank,
               name: parsedActive.name,
               reserve: parsed.data.reserve || null,
             },
@@ -200,7 +187,6 @@ export async function upsertDutyInstructorAction(formData: FormData): Promise<Ac
         where: { id: parsed.data.id },
         data: {
           dutyDate: entries[0].dutyDate,
-          rank: entries[0].rank,
           name: entries[0].name,
           reserve: entries[0].reserve,
         },
@@ -212,7 +198,6 @@ export async function upsertDutyInstructorAction(formData: FormData): Promise<Ac
             data: {
               userId,
               dutyDate: entry.dutyDate,
-              rank: entry.rank,
               name: entry.name,
               reserve: entry.reserve,
             },

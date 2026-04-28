@@ -13,7 +13,6 @@ import { formatShortDayMonth } from "@/lib/date";
 type DutyInstructorRow = {
   id: string;
   dutyDate: Date | string;
-  rank: string;
   name: string;
   reserve: string | null;
 };
@@ -22,14 +21,9 @@ type DutyInstructorEntryMode = "text" | "form";
 const EMPTY_FORM: DutyInstructorRow = {
   id: "",
   dutyDate: new Date(),
-  rank: "",
   name: "",
   reserve: "",
 };
-
-function formatActiveLabel(entry: Pick<DutyInstructorRow, "rank" | "name">) {
-  return [entry.rank, entry.name].filter(Boolean).join(" ").trim();
-}
 
 export function DutyInstructorTable({
   dutyInstructors,
@@ -196,8 +190,8 @@ export function DutyInstructorTable({
                   <label className="block text-sm font-medium text-slate-700">Active</label>
                   <input
                     name="active"
-                    defaultValue={formatActiveLabel(editingEntry)}
-                    placeholder="3WO Chrysanta"
+                    defaultValue={editingEntry.name}
+                    placeholder="Chrysanta"
                     className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
                   />
                 </div>
@@ -321,7 +315,7 @@ export function DutyInstructorTable({
                       />
                     </td>
                     <td className="px-4 py-3 text-slate-700">{formatShortDayMonth(new Date(entry.dutyDate))}</td>
-                    <td className="px-4 py-3 font-medium text-slate-900">{formatActiveLabel(entry)}</td>
+                    <td className="px-4 py-3 font-medium text-slate-900">{entry.name}</td>
                     <td className="px-4 py-3 text-slate-700">{entry.reserve || "-"}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-2">

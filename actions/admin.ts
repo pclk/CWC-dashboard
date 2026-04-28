@@ -96,7 +96,6 @@ async function authenticateAdmin(email: string, adminPassword: string) {
 }
 
 function formatRecordPerson(record: {
-  rank: string;
   name: string;
   details?: string;
   endAt?: Date | null;
@@ -112,20 +111,19 @@ function formatRecordPerson(record: {
   ].filter(Boolean);
 
   return {
-    label: `${record.rank} ${record.name}`,
+    label: record.name,
     details: details.join(" / ") || undefined,
   };
 }
 
 function formatAppointmentPerson(appointment: {
-  rank: string;
   name: string;
   title: string;
   venue?: string | null;
   appointmentAt: Date;
 }) {
   return {
-    label: `${appointment.rank} ${appointment.name}`,
+    label: appointment.name,
     details: [
       appointment.title,
       appointment.venue,
@@ -137,14 +135,13 @@ function formatAppointmentPerson(appointment: {
 }
 
 function formatTimelineAppointment(appointment: {
-  rank: string;
   name: string;
   title: string;
   venue?: string | null;
   appointmentAt: Date;
 }) {
   return {
-    label: `${appointment.rank} ${appointment.name}`,
+    label: appointment.name,
     details: [appointment.title, appointment.venue].filter(Boolean).join(" / ") || undefined,
     appointmentAt: appointment.appointmentAt.toISOString(),
     dateLabel: formatDisplayDateTime(appointment.appointmentAt),
@@ -200,7 +197,6 @@ async function buildAdminOverview(user: {
     }
 
     const recordDetails = formatRecordPerson({
-      rank: record.cadet.rank,
       name: record.cadet.displayName,
       details: record.details ?? record.title ?? undefined,
       endAt: record.endAt,
@@ -245,7 +241,7 @@ async function buildAdminOverview(user: {
 
   const strengthBucketPeople = activeCadets.reduce(
     (buckets, cadet) => {
-      const label = `${cadet.rank} ${cadet.displayName}`;
+      const label = cadet.displayName;
       const absenceDetails = absenceDetailsByCadet.get(cadet.id);
 
       if (absenceDetails?.length) {
@@ -392,9 +388,7 @@ async function buildAdminOverview(user: {
       .map(formatTimelineAppointment),
     timeline: timelineEvents,
     todayAppointments: todayAppointments.map((appointment) => ({
-      label: appointment.cadet
-        ? `${appointment.cadet.rank} ${appointment.cadet.displayName}`
-        : "General",
+      label: appointment.cadet ? appointment.cadet.displayName : "General",
       details: [
         appointment.title,
         appointment.venue,

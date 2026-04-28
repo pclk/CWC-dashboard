@@ -214,7 +214,7 @@ export function BunkManager({
               name="personnelText"
               rows={6}
               defaultValue={formatPersonnelText(editingBunk.personnel)}
-              placeholder={`ME4T GAVIN LEE\nME4T SIEW WEI HENG\nME4T SNG KIDD`}
+              placeholder={`GAVIN LEE\nSIEW WEI HENG\nSNG KIDD`}
               className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
             />
           </div>

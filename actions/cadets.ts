@@ -14,7 +14,6 @@ export async function upsertCadetAction(formData: FormData): Promise<ActionResul
 
   const parsed = cadetSchema.safeParse({
     id: parseOptionalString(formData.get("id")) || undefined,
-    rank: parseOptionalString(formData.get("rank")),
     displayName: parseOptionalString(formData.get("displayName")),
     shorthand: parseOptionalString(formData.get("shorthand")),
     active: parseCheckbox(formData.get("active")),
@@ -34,7 +33,6 @@ export async function upsertCadetAction(formData: FormData): Promise<ActionResul
         id: parsed.data.id,
       },
       data: {
-        rank: parsed.data.rank,
         displayName: parsed.data.displayName,
         shorthand: parsed.data.shorthand || null,
         active: parsed.data.active,
@@ -46,7 +44,6 @@ export async function upsertCadetAction(formData: FormData): Promise<ActionResul
     await prisma.cadet.create({
       data: {
         userId,
-        rank: parsed.data.rank,
         displayName: parsed.data.displayName,
         shorthand: parsed.data.shorthand || null,
         active: parsed.data.active,
@@ -193,7 +190,6 @@ async function importCadetRows(tx: Prisma.TransactionClient, userId: string, row
 
 function buildCadetData(row: ParsedCadetCsvRow) {
   return {
-    rank: row.rank,
     displayName: row.displayName,
     shorthand: row.shorthand || null,
     active: row.active,

@@ -21,22 +21,20 @@ export type ParadeStateInput = {
     other: number;
   };
   groupedRecords: {
-    mc: Array<{ rank: string; name: string; details?: string; startAt?: Date | null; endAt?: Date | null; unknownEndTime?: boolean }>;
-    rso: Array<{ rank: string; name: string; details?: string; startAt?: Date | null; endAt?: Date | null; unknownEndTime?: boolean }>;
-    rsi: Array<{ rank: string; name: string; details?: string; startAt?: Date | null; endAt?: Date | null; unknownEndTime?: boolean }>;
-    cl: Array<{ rank: string; name: string; details?: string; startAt?: Date | null; endAt?: Date | null; unknownEndTime?: boolean }>;
-    others: Array<{ rank: string; name: string; details?: string; startAt?: Date | null; endAt?: Date | null; unknownEndTime?: boolean }>;
-    status: Array<{ rank: string; name: string; details?: string; startAt?: Date | null; endAt?: Date | null; unknownEndTime?: boolean }>;
+    mc: Array<{ name: string; details?: string; startAt?: Date | null; endAt?: Date | null; unknownEndTime?: boolean }>;
+    rso: Array<{ name: string; details?: string; startAt?: Date | null; endAt?: Date | null; unknownEndTime?: boolean }>;
+    rsi: Array<{ name: string; details?: string; startAt?: Date | null; endAt?: Date | null; unknownEndTime?: boolean }>;
+    cl: Array<{ name: string; details?: string; startAt?: Date | null; endAt?: Date | null; unknownEndTime?: boolean }>;
+    others: Array<{ name: string; details?: string; startAt?: Date | null; endAt?: Date | null; unknownEndTime?: boolean }>;
+    status: Array<{ name: string; details?: string; startAt?: Date | null; endAt?: Date | null; unknownEndTime?: boolean }>;
   };
   maOaAppointments: Array<{
-    rank: string;
     name: string;
     title: string;
     venue?: string | null;
     appointmentAt: Date;
   }>;
   upcomingAppointments: Array<{
-    rank: string;
     name: string;
     title: string;
     venue?: string | null;
@@ -94,7 +92,7 @@ function renderAppointmentList(items: ParadeStateInput["upcomingAppointments"]) 
   return items
     .map(
       (item, index) =>
-        `${index + 1}) ${item.rank} ${formatAppointmentCadetName(item.name)}\n(${buildAppointmentSubject(item)}, ${formatCompactDmy(item.appointmentAt)}, ${formatTimeText(item.appointmentAt)})`,
+        `${index + 1}) ${formatAppointmentCadetName(item.name)}\n(${buildAppointmentSubject(item)}, ${formatCompactDmy(item.appointmentAt)}, ${formatTimeText(item.appointmentAt)})`,
     )
     .join("\n");
 }
@@ -149,7 +147,6 @@ function stripLegacyZeroNotInCampLines(text: string) {
 
 export function renderDetailedRecordList(
   items: Array<{
-    rank: string;
     name: string;
     details?: string;
     startAt?: Date | null;
@@ -165,18 +162,18 @@ export function renderDetailedRecordList(
       const formattedDetails = item.details?.replace(": ", ", ");
 
       if (formattedDetails && dateSpan) {
-        return `${index + 1}) ${item.rank} ${item.name} - ${formattedDetails} (${dateSpan})`;
+        return `${index + 1}) ${item.name} - ${formattedDetails} (${dateSpan})`;
       }
 
       if (formattedDetails) {
-        return `${index + 1}) ${item.rank} ${item.name} - ${formattedDetails}`;
+        return `${index + 1}) ${item.name} - ${formattedDetails}`;
       }
 
       if (dateSpan) {
-        return `${index + 1}) ${item.rank} ${item.name} (${dateSpan})`;
+        return `${index + 1}) ${item.name} (${dateSpan})`;
       }
 
-      return `${index + 1}) ${item.rank} ${item.name}`;
+      return `${index + 1}) ${item.name}`;
     })
     .join("\n");
 }

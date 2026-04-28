@@ -156,7 +156,7 @@ export function NightStudyBoardHeader({
               type="search"
               value={search}
               onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Search name, shorthand, or rank"
+              placeholder="Search name or shorthand"
               className="w-full rounded-2xl border border-black/10 bg-white py-3 pl-11 pr-4 text-sm outline-none focus:border-teal-700"
             />
           </div>

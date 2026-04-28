@@ -51,13 +51,11 @@ type DashboardActionSettings = {
   announcementPtTime?: string | null;
   announcementPtActivity?: string | null;
   announcementRequestDiRecipient?: string | null;
-  announcementRequestDiRank?: string | null;
   announcementRequestDiName?: string | null;
   announcementRequestDiLocation?: string | null;
   announcementRequestDiTime?: string | null;
   announcementRequestDiFirstTime?: boolean;
   announcementRequestLpRecipient?: string | null;
-  announcementRequestLpRank?: string | null;
   announcementRequestLpName?: string | null;
   announcementRequestLpLocation?: string | null;
   announcementRequestLpTime?: string | null;
@@ -138,7 +136,6 @@ export function buildDashboardNextActions(input: {
     DEFAULT_ANNOUNCEMENT_TIMES.FIRST_PARADE,
   );
   const requestDiRecipient = input.settings.announcementRequestDiRecipient?.trim() || "sir";
-  const requestDiRank = input.settings.announcementRequestDiRank?.trim() || "";
   const requestDiName = input.settings.announcementRequestDiName?.trim() || "";
   const requestDiLocation = input.settings.announcementRequestDiLocation?.trim() || "under block 315e";
   const requestLpMessageTime = resolveTime(
@@ -146,7 +143,6 @@ export function buildDashboardNextActions(input: {
     DEFAULT_ANNOUNCEMENT_TIMES.REQUEST_LP,
   );
   const requestLpRecipient = input.settings.announcementRequestLpRecipient?.trim() || "ma'am";
-  const requestLpRank = input.settings.announcementRequestLpRank?.trim() || "";
   const requestLpName = input.settings.announcementRequestLpName?.trim() || "";
   const requestLpLocation =
     input.settings.announcementRequestLpLocation?.trim() || "outside spectrum mess";
@@ -274,7 +270,6 @@ export function buildDashboardNextActions(input: {
       time: requestDiMessageTime,
       copyText: generateRequestDiMessage(input.templateMap.REQUEST_DI_FP, {
         recipient: requestDiRecipient,
-        rank: requestDiRank,
         name: requestDiName,
         cohortName: input.cohortName,
         location: requestDiLocation,
@@ -291,7 +286,6 @@ export function buildDashboardNextActions(input: {
       time: requestLpMessageTime,
       copyText: generateRequestLpMessage(input.templateMap.REQUEST_LP, {
         recipient: requestLpRecipient,
-        rank: requestLpRank,
         name: requestLpName,
         cohortName: input.cohortName,
         location: requestLpLocation,

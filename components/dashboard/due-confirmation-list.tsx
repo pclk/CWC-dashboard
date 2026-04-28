@@ -10,7 +10,6 @@ type DueRecord = {
   details: string | null;
   endAt: Date | null;
   cadet: {
-    rank: string;
     displayName: string;
   };
 };
@@ -42,7 +41,7 @@ export function DueConfirmationList({ records }: { records: DueRecord[] }) {
             >
               <div>
                 <p className="text-sm font-semibold text-slate-900">
-                  {record.cadet.rank} {record.cadet.displayName}
+                  {record.cadet.displayName}
                 </p>
                 <p className="text-sm text-slate-700">
                   {getRecordCategoryLabel(record.category)}

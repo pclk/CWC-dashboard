@@ -29,7 +29,6 @@ export type DashboardTimelineEvent = {
 
 type ActiveCadet = {
   id: string;
-  rank: string;
   displayName: string;
 };
 
@@ -45,7 +44,6 @@ type OperationalRecord = {
   affectsStrength: boolean;
   cadet: {
     active: boolean;
-    rank: string;
     displayName: string;
   };
 };
@@ -64,7 +62,6 @@ type TodayAppointment = {
 };
 
 function formatRecordPerson(record: {
-  rank: string;
   name: string;
   details?: string;
   endAt?: Date | null;
@@ -80,7 +77,7 @@ function formatRecordPerson(record: {
   ].filter(Boolean);
 
   return {
-    label: `${record.rank} ${record.name}`,
+    label: record.name,
     details: details.join(" / ") || undefined,
   };
 }
@@ -126,7 +123,6 @@ export function buildDashboardStrengthBuckets({
     }
 
     const recordDetails = formatRecordPerson({
-      rank: record.cadet.rank,
       name: record.cadet.displayName,
       details: record.details ?? record.title ?? undefined,
       endAt: record.endAt,
@@ -171,7 +167,7 @@ export function buildDashboardStrengthBuckets({
 
   const people = activeCadets.reduce(
     (buckets, cadet) => {
-      const label = `${cadet.rank} ${cadet.displayName}`;
+      const label = cadet.displayName;
       const absenceDetails = absenceDetailsByCadet.get(cadet.id);
 
       if (absenceDetails?.length) {

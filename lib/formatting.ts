@@ -1,16 +1,16 @@
 export function renderNamedList(
-  items: Array<{ rank: string; name: string; details?: string }>,
+  items: Array<{ name: string; details?: string }>,
   multiline = true,
 ) {
   if (!items.length) return "NIL";
 
   return items
     .map((item, index) => {
-      if (!item.details) return `${index + 1}) ${item.rank} ${item.name}`;
+      if (!item.details) return `${index + 1}) ${item.name}`;
 
       return multiline
-        ? `${index + 1}) ${item.rank} ${item.name}\n(${item.details})`
-        : `${index + 1}) ${item.rank} ${item.name} - ${item.details}`;
+        ? `${index + 1}) ${item.name}\n(${item.details})`
+        : `${index + 1}) ${item.name} - ${item.details}`;
     })
     .join("\n");
 }

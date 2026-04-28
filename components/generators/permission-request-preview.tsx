@@ -16,7 +16,6 @@ type PermissionRequestPreviewProps = {
   templateBody: string;
   cohortName: string;
   initialRecipient?: string | null;
-  initialRank?: string | null;
   initialName?: string | null;
   initialLocation?: string | null;
   initialTime?: string | null;
@@ -24,7 +23,6 @@ type PermissionRequestPreviewProps = {
   defaultRecipient: string;
   defaultLocation: string;
   defaultTime: string;
-  defaultRank?: string;
   defaultName?: string;
   dutyInstructorActive?: string | null;
   dutyInstructorReserve?: string | null;
@@ -37,7 +35,6 @@ export function PermissionRequestPreview({
   templateBody,
   cohortName,
   initialRecipient,
-  initialRank,
   initialName,
   initialLocation,
   initialTime,
@@ -45,14 +42,12 @@ export function PermissionRequestPreview({
   defaultRecipient,
   defaultLocation,
   defaultTime,
-  defaultRank = "",
   defaultName = "",
   dutyInstructorActive,
   dutyInstructorReserve,
 }: PermissionRequestPreviewProps) {
   const supportsFirstTime = draftType === "REQUEST_DI_FP" || draftType === "REQUEST_LP";
   const [recipient, setRecipient] = useState(initialRecipient ?? defaultRecipient);
-  const [rank, setRank] = useState(initialRank ?? defaultRank);
   const [name, setName] = useState(initialName ?? defaultName);
   const [location, setLocation] = useState(initialLocation ?? defaultLocation);
   const [time, setTime] = useState(initialTime ?? defaultTime);
@@ -61,7 +56,6 @@ export function PermissionRequestPreview({
   const lastSavedDraftRef = useRef(
     JSON.stringify({
       recipient: initialRecipient ?? defaultRecipient,
-      rank: initialRank ?? defaultRank,
       name: initialName ?? defaultName,
       location: initialLocation ?? defaultLocation,
       time: initialTime ?? defaultTime,
@@ -72,7 +66,6 @@ export function PermissionRequestPreview({
   useEffect(() => {
     const nextDraft = JSON.stringify({
       recipient,
-      rank,
       name,
       location,
       time,
@@ -88,7 +81,6 @@ export function PermissionRequestPreview({
         const result = await updateAnnouncementDraftAction({
           type: draftType,
           recipient,
-          rank,
           name,
           location,
           time,
@@ -102,13 +94,12 @@ export function PermissionRequestPreview({
     }, 500);
 
     return () => window.clearTimeout(timeoutId);
-  }, [draftType, firstTime, location, name, rank, recipient, startTransition, time]);
+  }, [draftType, firstTime, location, name, recipient, startTransition, time]);
 
   function generateMessage() {
     if (draftType === "REQUEST_DI_FP") {
       return generateRequestDiMessage(templateBody, {
         recipient,
-        rank,
         name,
         cohortName,
         location,
@@ -119,7 +110,6 @@ export function PermissionRequestPreview({
 
     return generateRequestLpMessage(templateBody, {
       recipient,
-      rank,
       name,
       cohortName,
       location,
@@ -164,25 +154,14 @@ export function PermissionRequestPreview({
         </div>
 
         {supportsFirstTime ? (
-          <>
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-700">Rank</label>
-              <input
-                value={rank}
-                onChange={(event) => setRank(event.target.value)}
-                className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-700">Name</label>
-              <input
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
-              />
-            </div>
-          </>
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700">Name</label>
+            <input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-teal-700"
+            />
+          </div>
         ) : null}
 
         <div className="space-y-2">

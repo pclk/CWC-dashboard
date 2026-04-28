@@ -6,16 +6,32 @@ import { useRouter } from "next/navigation";
 import { deleteCadetAction } from "@/actions/cadets";
 import { CadetForm } from "@/components/cadets/cadet-form";
 import { CadetImportForm } from "@/components/cadets/cadet-import-form";
+import { formatCompactDmy } from "@/lib/date";
+import { getRecordCategoryLabel, RECORD_CATEGORY_VALUES } from "@/lib/record-categories";
 
 type CadetRow = {
   id: string;
-  rank: string;
   displayName: string;
   shorthand: string | null;
   active: boolean;
   sortOrder: number;
   notes: string | null;
+  recordStats: Array<{
+    category: string;
+    recordCount: number;
+    firstRecordAt: Date | string;
+  }>;
 };
+
+function getCadetRecordTotal(cadet: CadetRow) {
+  return cadet.recordStats.reduce((total, stat) => total + stat.recordCount, 0);
+}
+
+function getCadetFirstRecordDate(cadet: CadetRow) {
+  return cadet.recordStats
+    .map((stat) => new Date(stat.firstRecordAt))
+    .sort((left, right) => left.getTime() - right.getTime())[0];
+}
 
 export function CadetTable({ cadets }: { cadets: CadetRow[] }) {
   const router = useRouter();
@@ -38,12 +54,12 @@ export function CadetTable({ cadets }: { cadets: CadetRow[] }) {
               onClick={() =>
                 setEditingCadet({
                   id: "",
-                  rank: "ME4T",
                   displayName: "",
                   shorthand: "",
                   active: true,
                   sortOrder: 0,
                   notes: "",
+                  recordStats: [],
                 })
               }
               className="rounded-2xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-teal-800"
@@ -68,11 +84,12 @@ export function CadetTable({ cadets }: { cadets: CadetRow[] }) {
           <table className="min-w-full divide-y divide-black/10 text-left text-sm">
             <thead className="bg-slate-50 text-slate-600">
               <tr>
-                <th className="px-4 py-3 font-medium">Rank</th>
                 <th className="px-4 py-3 font-medium">Display Name</th>
                 <th className="px-4 py-3 font-medium">Shorthand</th>
                 <th className="px-4 py-3 font-medium">Order</th>
                 <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Record History</th>
+                <th className="px-4 py-3 font-medium">Breakdown</th>
                 <th className="px-4 py-3 font-medium">Notes</th>
                 <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
@@ -80,7 +97,6 @@ export function CadetTable({ cadets }: { cadets: CadetRow[] }) {
             <tbody className="divide-y divide-black/5">
               {cadets.map((cadet) => (
                 <tr key={cadet.id} className={!cadet.active ? "bg-slate-50/60 text-slate-500" : ""}>
-                  <td className="px-4 py-3">{cadet.rank}</td>
                   <td className="px-4 py-3 font-medium text-slate-900">{cadet.displayName}</td>
                   <td className="px-4 py-3 text-slate-700">{cadet.shorthand || "-"}</td>
                   <td className="px-4 py-3">{cadet.sortOrder}</td>
@@ -92,6 +108,44 @@ export function CadetTable({ cadets }: { cadets: CadetRow[] }) {
                     >
                       {cadet.active ? "Active" : "Inactive"}
                     </span>
+                  </td>
+                  <td className="px-4 py-3 text-slate-700">
+                    {getCadetRecordTotal(cadet) ? (
+                      <div>
+                        <div className="font-medium text-slate-900">
+                          {getCadetRecordTotal(cadet)} record{getCadetRecordTotal(cadet) === 1 ? "" : "s"}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          First: {formatCompactDmy(getCadetFirstRecordDate(cadet) ?? new Date())}
+                        </div>
+                      </div>
+                    ) : (
+                      "-"
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {cadet.recordStats.length ? (
+                      <div className="flex max-w-sm flex-wrap gap-2">
+                        {RECORD_CATEGORY_VALUES.map((category) => {
+                          const stat = cadet.recordStats.find((item) => item.category === category);
+
+                          if (!stat) {
+                            return null;
+                          }
+
+                          return (
+                            <span
+                              key={category}
+                              className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
+                            >
+                              {getRecordCategoryLabel(category)} {stat.recordCount}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <span className="text-slate-500">-</span>
+                    )}
                   </td>
                   <td className="max-w-xs px-4 py-3 text-slate-600">{cadet.notes || "-"}</td>
                   <td className="px-4 py-3">
