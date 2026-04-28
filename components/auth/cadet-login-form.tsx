@@ -57,18 +57,12 @@ export function CadetLoginForm() {
         {pending ? "Signing in..." : "Sign in"}
       </button>
 
-      <div className="grid gap-2 border-t border-black/10 pt-4 sm:grid-cols-2">
+      <div className="border-t border-black/10 pt-4">
         <Link
           href="/cwc/instructors"
-          className="flex items-center justify-center rounded-2xl border border-black/10 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+          className="flex w-full items-center justify-center rounded-2xl border border-black/10 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
         >
           Sign in as Instructor
-        </Link>
-        <Link
-          href="/cwc/login"
-          className="flex items-center justify-center rounded-2xl border border-black/10 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-        >
-          Sign in as CWC
         </Link>
       </div>
     </form>

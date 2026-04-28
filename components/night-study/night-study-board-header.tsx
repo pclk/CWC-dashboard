@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, RefreshCw, RotateCcw, Search, Users } from "lucide-react";
+import { Copy, RefreshCw, RotateCcw, Search, UserCheck, Users } from "lucide-react";
 
 import {
   type NightStudyFilter,
@@ -15,16 +15,19 @@ export function NightStudyBoardHeader({
   filterGroup,
   groups,
   bulkMode,
-  pending,
+  savePending,
+  syncPending,
   copied,
   isDirty,
   status,
+  statusTone,
   onModeChange,
   onSearchChange,
   onFilterChange,
   onToggleBulkMode,
   onCopySummary,
   onLoadAutomaticOthers,
+  onSyncWithCadets,
   onReset,
   onSave,
 }: {
@@ -33,16 +36,19 @@ export function NightStudyBoardHeader({
   filterGroup: NightStudyFilter;
   groups: NightStudyGroupMeta[];
   bulkMode: boolean;
-  pending: boolean;
+  savePending: boolean;
+  syncPending: boolean;
   copied: boolean;
   isDirty: boolean;
   status: string | null;
+  statusTone: "default" | "success" | "warning";
   onModeChange: (mode: NightStudyMode) => void;
   onSearchChange: (value: string) => void;
   onFilterChange: (filter: NightStudyFilter) => void;
   onToggleBulkMode: () => void;
   onCopySummary: () => void;
   onLoadAutomaticOthers: () => void;
+  onSyncWithCadets: () => void;
   onReset: () => void;
   onSave: () => void;
 }) {
@@ -89,6 +95,15 @@ export function NightStudyBoardHeader({
           </button>
           <button
             type="button"
+            onClick={onSyncWithCadets}
+            disabled={syncPending || savePending}
+            className="inline-flex items-center gap-2 rounded-2xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm font-semibold text-teal-800 transition hover:bg-teal-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <UserCheck className="size-4" aria-hidden />
+            {syncPending ? "Syncing..." : "Sync with Cadets"}
+          </button>
+          <button
+            type="button"
             onClick={onReset}
             className="inline-flex items-center gap-2 rounded-2xl border border-black/10 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
           >
@@ -97,17 +112,26 @@ export function NightStudyBoardHeader({
           </button>
           <button
             type="button"
-            disabled={pending || !isDirty}
+            disabled={savePending || !isDirty}
             onClick={onSave}
             className="rounded-2xl bg-teal-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {pending ? "Saving..." : isDirty ? "Save Night Study" : "Saved"}
+            {savePending ? "Saving..." : isDirty ? "Save Night Study" : "Saved"}
           </button>
         </div>
       </div>
 
       {status ? (
-        <p className="mt-4 rounded-[1.25rem] bg-slate-100 px-4 py-3 text-sm text-slate-700">
+        <p
+          className={cn(
+            "mt-4 rounded-[1.25rem] px-4 py-3 text-sm",
+            statusTone === "success"
+              ? "border border-teal-200 bg-teal-50 text-teal-900"
+              : statusTone === "warning"
+                ? "border border-amber-200 bg-amber-50 text-amber-900"
+                : "bg-slate-100 text-slate-700",
+          )}
+        >
           {status}
         </p>
       ) : null}

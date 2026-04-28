@@ -6,11 +6,13 @@ import { usePathname } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 
 import { cadetLogoutAction } from "@/actions/cadet-auth";
+import { isActiveNavigationHref } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 const CADET_NAV_ITEMS = [
   { href: "/cadet/dashboard", label: "Dashboard" },
   { href: "/cadet/report-sick", label: "Report Sick" },
+  { href: "/cadet/status-update", label: "Status Update" },
   { href: "/cadet/night-study", label: "Night Study" },
 ] as const;
 
@@ -26,7 +28,7 @@ export function CadetShell({
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const drawerId = useId();
-  const activeItem = CADET_NAV_ITEMS.find((item) => item.href === pathname);
+  const activeItem = CADET_NAV_ITEMS.find((item) => isActiveNavigationHref(pathname, item.href));
 
   useEffect(() => {
     if (!open) {
@@ -57,7 +59,7 @@ export function CadetShell({
   const nav = (
     <nav className="space-y-1">
       {CADET_NAV_ITEMS.map((item) => {
-        const active = pathname === item.href;
+        const active = isActiveNavigationHref(pathname, item.href);
 
         return (
           <Link

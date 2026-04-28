@@ -1,21 +1,43 @@
 "use client";
 
+import { Menu, X } from "lucide-react";
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 
 import {
+  assignCadetAppointmentHolderAction,
   changeBatchNameAsInstructorAction,
+  generateCadetResetLinkAction,
   instructorDashboardLoginAction,
   instructorDashboardLogoutAction,
+  revokeCadetResetLinkAction,
   type InstructorOverview,
 } from "@/actions/instructors";
+import {
+  instructorApproveReportSickRequest,
+  instructorDeclineRequest,
+} from "@/actions/cadet-requests";
+import { formatDisplayDateTime } from "@/lib/date";
+import { getRecordCategoryLabel } from "@/lib/record-categories";
+import type { InstructorRememberDuration } from "@/lib/validators/auth";
+
+const REMEMBER_DURATION_OPTIONS: Array<{ value: InstructorRememberDuration; label: string }> = [
+  { value: "1d", label: "1 day" },
+  { value: "7d", label: "7 days" },
+  { value: "30d", label: "30 days" },
+];
 
 type PersonItem = {
   label: string;
   details?: string;
 };
 
-type InstructorSection = "dashboard" | "settings";
+type InstructorSection =
+  | "dashboard"
+  | "requests"
+  | "assign_kah"
+  | "onboard"
+  | "settings";
 
 const INSTRUCTOR_SECTIONS: Array<{ key: InstructorSection; label: string; description: string }> = [
   {
@@ -24,11 +46,35 @@ const INSTRUCTOR_SECTIONS: Array<{ key: InstructorSection; label: string; descri
     description: "Strength and personnel overview",
   },
   {
+    key: "requests",
+    label: "Requests",
+    description: "Approve or decline trainee submissions",
+  },
+  {
+    key: "assign_kah",
+    label: "Assign KAH",
+    description: "Set cadet appointment roles",
+  },
+  {
+    key: "onboard",
+    label: "Onboard trainees",
+    description: "Generate password reset links",
+  },
+  {
     key: "settings",
     label: "Account settings",
     description: "Change batch name",
   },
 ];
+
+const KAH_OPTIONS: Array<{ value: "" | "CWC"; label: string }> = [
+  { value: "", label: "—" },
+  { value: "CWC", label: "CWC" },
+];
+
+function normalizeKahSelection(value: string | null) {
+  return value === "CWC" ? "CWC" : "";
+}
 
 function MetricCard({
   label,
@@ -616,7 +662,34 @@ function InstructorSidebar({
   onSignOut: () => void;
 }) {
   return (
-    <aside className="rounded-[2rem] border border-black/10 bg-slate-950 p-5 text-white shadow-sm lg:sticky lg:top-6 lg:self-start">
+    <aside className="hidden rounded-[2rem] border border-black/10 bg-slate-950 p-5 text-white shadow-sm lg:sticky lg:top-6 lg:flex lg:self-start">
+      <div className="w-full">
+        <InstructorSidebarContent
+          accountLabel={accountLabel}
+          activeSection={activeSection}
+          onSectionChange={onSectionChange}
+          onSignOut={onSignOut}
+        />
+      </div>
+    </aside>
+  );
+}
+
+function InstructorSidebarContent({
+  accountLabel,
+  activeSection,
+  onSectionChange,
+  onSignOut,
+  onNavigate,
+}: {
+  accountLabel: string;
+  activeSection: InstructorSection;
+  onSectionChange: (section: InstructorSection) => void;
+  onSignOut: () => void;
+  onNavigate?: () => void;
+}) {
+  return (
+    <>
       <div className="border-b border-white/10 pb-5">
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-teal-300">
           Instructor Console
@@ -633,7 +706,10 @@ function InstructorSidebar({
             <button
               key={section.key}
               type="button"
-              onClick={() => onSectionChange(section.key)}
+              onClick={() => {
+                onSectionChange(section.key);
+                onNavigate?.();
+              }}
               className={`w-full rounded-2xl px-4 py-3 text-left transition ${
                 active ? "bg-white text-slate-950" : "text-slate-200 hover:bg-white/10"
               }`}
@@ -653,16 +729,123 @@ function InstructorSidebar({
           onClick={onSignOut}
           className="w-full rounded-2xl border border-white/15 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
         >
-          Sign out instructor
+          Sign out
         </button>
-        <Link
-          href="/"
-          className="flex w-full justify-center rounded-2xl border border-white/15 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
-        >
-          Back to app
-        </Link>
       </div>
-    </aside>
+    </>
+  );
+}
+
+function InstructorMobileNav({
+  accountLabel,
+  activeSection,
+  onSectionChange,
+  onSignOut,
+}: {
+  accountLabel: string;
+  activeSection: InstructorSection;
+  onSectionChange: (section: InstructorSection) => void;
+  onSignOut: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const drawerId = useId();
+  const activeItem = INSTRUCTOR_SECTIONS.find((section) => section.key === activeSection);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const closeMenu = () => {
+      setOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeMenu();
+      }
+    };
+    const originalOverflow = document.body.style.overflow;
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("popstate", closeMenu);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("popstate", closeMenu);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <div className="sticky top-4 z-30 mb-4 lg:hidden">
+        <div className="flex items-center gap-3 rounded-[1.75rem] border border-black/10 bg-white/88 px-3 py-3 shadow-sm backdrop-blur">
+          <button
+            type="button"
+            aria-label={open ? "Close navigation menu" : "Open navigation menu"}
+            aria-controls={drawerId}
+            aria-expanded={open}
+            onClick={() => setOpen((value) => !value)}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-black/10 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50"
+          >
+            <Menu className="h-5 w-5" aria-hidden="true" />
+          </button>
+
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-teal-700">
+              Instructor Console
+            </p>
+            <p className="truncate text-sm font-semibold text-slate-900">
+              {activeItem?.label ?? "Dashboard"}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className={`fixed inset-0 z-50 lg:hidden ${open ? "" : "pointer-events-none"}`}>
+        <button
+          type="button"
+          aria-label="Close navigation menu"
+          onClick={() => setOpen(false)}
+          className={`absolute inset-0 bg-slate-950/28 transition-opacity ${
+            open ? "opacity-100" : "opacity-0"
+          }`}
+        />
+
+        <aside
+          id={drawerId}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Instructor navigation menu"
+          aria-hidden={!open}
+          className={`absolute inset-y-0 left-0 flex w-[min(21rem,calc(100vw-2.5rem))] max-w-full flex-col rounded-r-[2rem] border-r border-black/10 bg-slate-950 p-5 text-white shadow-2xl transition-transform duration-300 ease-out ${
+            open ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          <div className="mb-4 flex justify-end">
+            <button
+              type="button"
+              aria-label="Close navigation menu"
+              onClick={() => setOpen(false)}
+              className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/15 text-slate-200 transition hover:bg-white/10"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <InstructorSidebarContent
+              accountLabel={accountLabel}
+              activeSection={activeSection}
+              onSectionChange={onSectionChange}
+              onSignOut={onSignOut}
+              onNavigate={() => setOpen(false)}
+            />
+          </div>
+        </aside>
+      </div>
+    </>
   );
 }
 
@@ -721,6 +904,684 @@ function InstructorDashboardSection({
             <PersonList emptyText="No appointments today." people={overview.todayAppointments} />
           </div>
         </article>
+      </section>
+    </div>
+  );
+}
+
+type PendingReportSickRequest = InstructorOverview["pendingReportSickRequests"][number];
+
+function InstructorRequestsSection({
+  requests,
+  onRequestResolved,
+}: {
+  requests: PendingReportSickRequest[];
+  onRequestResolved: (requestId: string) => void;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [busyRequestId, setBusyRequestId] = useState<string | null>(null);
+  const [rowStatus, setRowStatus] = useState<
+    Record<string, { kind: "ok" | "error"; message: string } | undefined>
+  >({});
+  const [declineTarget, setDeclineTarget] = useState<PendingReportSickRequest | null>(null);
+  const [declineReason, setDeclineReason] = useState("");
+  const [declineError, setDeclineError] = useState<string | null>(null);
+
+  const setStatus = (
+    requestId: string,
+    status: { kind: "ok" | "error"; message: string },
+  ) => {
+    setRowStatus((current) => ({ ...current, [requestId]: status }));
+  };
+
+  const handleApprove = (request: PendingReportSickRequest) => {
+    setBusyRequestId(request.requestId);
+    setRowStatus((current) => ({ ...current, [request.requestId]: undefined }));
+
+    startTransition(async () => {
+      const result = await instructorApproveReportSickRequest({
+        requestId: request.requestId,
+      });
+      setBusyRequestId(null);
+
+      if (result.ok) {
+        onRequestResolved(request.requestId);
+        return;
+      }
+
+      setStatus(request.requestId, {
+        kind: "error",
+        message: result.error ?? "Unable to approve.",
+      });
+    });
+  };
+
+  const openDecline = (request: PendingReportSickRequest) => {
+    setDeclineTarget(request);
+    setDeclineReason("");
+    setDeclineError(null);
+  };
+
+  const closeDecline = () => {
+    setDeclineTarget(null);
+    setDeclineReason("");
+    setDeclineError(null);
+  };
+
+  const submitDecline = () => {
+    if (!declineTarget) return;
+    const reason = declineReason.trim();
+    if (!reason) {
+      setDeclineError("Reason is required.");
+      return;
+    }
+
+    const target = declineTarget;
+    setBusyRequestId(target.requestId);
+    setDeclineError(null);
+
+    startTransition(async () => {
+      const result = await instructorDeclineRequest({
+        requestId: target.requestId,
+        reason,
+      });
+      setBusyRequestId(null);
+
+      if (result.ok) {
+        closeDecline();
+        onRequestResolved(target.requestId);
+        return;
+      }
+
+      setDeclineError(result.error ?? "Unable to decline.");
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-[2rem] border border-black/10 bg-white/92 p-5 shadow-sm">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">
+              Instructor Tool
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold text-slate-900">Report Sick Requests</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Approve or decline pending Report Sick submissions. Approved requests move to the CWC
+              for final review. MC / Status Update requests skip this stage and go straight to the
+              CWC.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 overflow-x-auto">
+          <table className="min-w-full divide-y divide-black/10 text-left text-sm">
+            <thead>
+              <tr className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                <th className="px-3 py-2">Cadet</th>
+                <th className="px-3 py-2">Category</th>
+                <th className="px-3 py-2">Title</th>
+                <th className="px-3 py-2">Details</th>
+                <th className="px-3 py-2">Start</th>
+                <th className="px-3 py-2">End</th>
+                <th className="px-3 py-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-black/5">
+              {requests.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-3 py-6 text-center text-slate-500">
+                    No pending Report Sick requests.
+                  </td>
+                </tr>
+              ) : (
+                requests.map((request) => {
+                  const status = rowStatus[request.requestId];
+                  const isBusy = busyRequestId === request.requestId;
+                  const startLabel = request.startAt
+                    ? formatDisplayDateTime(new Date(request.startAt))
+                    : "—";
+                  const endLabel = request.unknownEndTime
+                    ? "End TBC"
+                    : request.endAt
+                      ? formatDisplayDateTime(new Date(request.endAt))
+                      : "—";
+
+                  return (
+                    <tr key={request.requestId} className="align-top">
+                      <td className="px-3 py-3 font-medium text-slate-900">
+                        {request.cadetDisplayName}
+                      </td>
+                      <td className="px-3 py-3 text-slate-700">
+                        {getRecordCategoryLabel(request.category)}
+                      </td>
+                      <td className="px-3 py-3 text-slate-700">{request.title || "—"}</td>
+                      <td className="px-3 py-3 text-slate-700">
+                        <span className="block max-w-[20rem] whitespace-pre-wrap break-words">
+                          {request.details || "—"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-slate-700">{startLabel}</td>
+                      <td className="px-3 py-3 text-slate-700">{endLabel}</td>
+                      <td className="px-3 py-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={pending || isBusy}
+                            onClick={() => handleApprove(request)}
+                            className="rounded-2xl bg-teal-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
+                          >
+                            {isBusy ? "Working..." : "Approve"}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={pending || isBusy}
+                            onClick={() => openDecline(request)}
+                            className="rounded-2xl border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+                          >
+                            Decline
+                          </button>
+                          {status ? (
+                            <span
+                              className={`text-xs font-medium ${
+                                status.kind === "ok" ? "text-teal-700" : "text-red-600"
+                              }`}
+                            >
+                              {status.message}
+                            </span>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {declineTarget ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4"
+        >
+          <div className="w-full max-w-lg space-y-4 rounded-[2rem] border border-black/10 bg-white p-6 shadow-lg">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">Decline request</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Provide a reason for declining {declineTarget.cadetDisplayName}&apos;s request.
+                The cadet will see this reason.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <label
+                className="block text-sm font-medium text-slate-700"
+                htmlFor="declineReason"
+              >
+                Reason
+              </label>
+              <textarea
+                id="declineReason"
+                value={declineReason}
+                onChange={(event) => setDeclineReason(event.target.value)}
+                rows={4}
+                required
+                className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none transition focus:border-teal-700"
+              />
+            </div>
+            {declineError ? (
+              <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{declineError}</p>
+            ) : null}
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeDecline}
+                disabled={pending}
+                className="rounded-2xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitDecline}
+                disabled={pending}
+                className="rounded-2xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
+              >
+                {pending ? "Declining..." : "Decline request"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function InstructorAssignKahSection({
+  assignments,
+  onAssignmentSaved,
+}: {
+  assignments: InstructorOverview["kahAssignments"];
+  onAssignmentSaved: (cadet: {
+    cadetId: string;
+    displayName: string;
+    appointmentHolder: string | null;
+  }) => void;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [selectedByCadet, setSelectedByCadet] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      assignments.map((a) => [a.cadetId, normalizeKahSelection(a.appointmentHolder)]),
+    ),
+  );
+  const [rowStatus, setRowStatus] = useState<
+    Record<string, { kind: "ok" | "error"; message: string } | undefined>
+  >({});
+  const [savingCadetId, setSavingCadetId] = useState<string | null>(null);
+
+  const handleSave = (cadetId: string) => {
+    const appointmentHolder = selectedByCadet[cadetId] ?? "";
+
+    setSavingCadetId(cadetId);
+    setRowStatus((current) => ({ ...current, [cadetId]: undefined }));
+
+    startTransition(async () => {
+      const result = await assignCadetAppointmentHolderAction({
+        cadetId,
+        appointmentHolder,
+      });
+
+      setSavingCadetId(null);
+
+      if (result.ok && result.cadet) {
+        onAssignmentSaved({
+          cadetId: result.cadet.id,
+          displayName: result.cadet.displayName,
+          appointmentHolder: result.cadet.appointmentHolder,
+        });
+        setSelectedByCadet((current) => ({
+          ...current,
+          [cadetId]: normalizeKahSelection(result.cadet?.appointmentHolder ?? null),
+        }));
+        setRowStatus((current) => ({
+          ...current,
+          [cadetId]: { kind: "ok", message: result.message ?? "Saved." },
+        }));
+        return;
+      }
+
+      setRowStatus((current) => ({
+        ...current,
+        [cadetId]: {
+          kind: "error",
+          message: result.error ?? "Unable to save.",
+        },
+      }));
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-[2rem] border border-black/10 bg-white/92 p-5 shadow-sm">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">
+              Instructor Tool
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold text-slate-900">Assign KAH</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Set each cadet&apos;s appointment role. Setting a cadet to CWC only grants /cwc
+              access if the cadet already has a password.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 overflow-x-auto">
+          <table className="min-w-full divide-y divide-black/10 text-left text-sm">
+            <thead>
+              <tr className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                <th className="px-3 py-2">Name</th>
+                <th className="px-3 py-2">Current</th>
+                <th className="px-3 py-2">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-black/5">
+              {assignments.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="px-3 py-6 text-center text-slate-500">
+                    No active cadets to assign.
+                  </td>
+                </tr>
+              ) : (
+                assignments.map((cadet) => {
+                  const selected = selectedByCadet[cadet.cadetId] ?? "";
+                  const status = rowStatus[cadet.cadetId];
+                  const isSaving = savingCadetId === cadet.cadetId;
+                  const dirty = (cadet.appointmentHolder ?? "") !== selected;
+
+                  return (
+                    <tr key={cadet.cadetId}>
+                      <td className="px-3 py-3 align-middle font-medium text-slate-900">
+                        {cadet.displayName}
+                      </td>
+                      <td className="px-3 py-3 align-middle text-slate-700">
+                        {cadet.appointmentHolder ?? "—"}
+                      </td>
+                      <td className="px-3 py-3 align-middle">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <select
+                            value={selected}
+                            disabled={isSaving}
+                            onChange={(event) =>
+                              setSelectedByCadet((current) => ({
+                                ...current,
+                                [cadet.cadetId]: event.target.value,
+                              }))
+                            }
+                            className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-teal-700"
+                          >
+                            {KAH_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            disabled={pending || isSaving || !dirty}
+                            onClick={() => handleSave(cadet.cadetId)}
+                            className="rounded-2xl bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
+                          >
+                            {isSaving ? "Saving..." : "Save"}
+                          </button>
+                          {status ? (
+                            <span
+                              className={`text-xs font-medium ${
+                                status.kind === "ok" ? "text-teal-700" : "text-red-600"
+                              }`}
+                            >
+                              {status.message}
+                            </span>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+type OnboardingEntry = InstructorOverview["onboarding"][number];
+
+function csvEscape(value: string) {
+  if (/[",\n\r]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
+function getOnboardingExportNotes(entry: OnboardingEntry, link?: string) {
+  if (link) {
+    return "";
+  }
+
+  if (entry.hasActiveToken) {
+    return entry.notes?.trim() || "Active reset link exists; regenerate to export URL.";
+  }
+
+  return [entry.notes, entry.lastRevokedReason]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value))
+    .join("\n");
+}
+
+function buildOnboardingCsv(
+  entries: OnboardingEntry[],
+  urlByCadet: Record<string, string | undefined>,
+) {
+  const header = ["Name", "Reset link", "Notes"].join(",");
+  const lines = entries.map((entry) => {
+    const link = entry.hasActiveToken ? urlByCadet[entry.cadetId] ?? "" : "";
+    const notes = getOnboardingExportNotes(entry, link);
+
+    return [csvEscape(entry.displayName), csvEscape(link), csvEscape(notes)].join(",");
+  });
+
+  return [header, ...lines].join("\r\n");
+}
+
+function InstructorOnboardSection({
+  entries,
+  onEntryUpdated,
+}: {
+  entries: OnboardingEntry[];
+  onEntryUpdated: (entry: OnboardingEntry) => void;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [busyCadetId, setBusyCadetId] = useState<string | null>(null);
+  const [urlByCadet, setUrlByCadet] = useState<Record<string, string | undefined>>({});
+  const [rowStatus, setRowStatus] = useState<
+    Record<string, { kind: "ok" | "error"; message: string } | undefined>
+  >({});
+
+  const setStatus = (cadetId: string, status: { kind: "ok" | "error"; message: string }) => {
+    setRowStatus((current) => ({ ...current, [cadetId]: status }));
+  };
+
+  const handleGenerate = (cadetId: string) => {
+    setBusyCadetId(cadetId);
+    setRowStatus((current) => ({ ...current, [cadetId]: undefined }));
+
+    startTransition(async () => {
+      const result = await generateCadetResetLinkAction({ cadetId });
+      setBusyCadetId(null);
+
+      if (result.ok && result.entry) {
+        const entry = result.entry;
+        onEntryUpdated({
+          cadetId: entry.cadetId,
+          displayName: entry.displayName,
+          hasActiveToken: entry.hasActiveToken,
+          resetTokenExpiresAt: entry.resetTokenExpiresAt,
+          lastRevokedReason: entry.lastRevokedReason,
+          notes: entry.notes,
+        });
+        setUrlByCadet((current) => ({ ...current, [cadetId]: entry.url }));
+        setStatus(cadetId, { kind: "ok", message: "Link generated." });
+        return;
+      }
+
+      setStatus(cadetId, { kind: "error", message: result.error ?? "Unable to generate link." });
+    });
+  };
+
+  const handleRevoke = (cadetId: string) => {
+    setBusyCadetId(cadetId);
+    setRowStatus((current) => ({ ...current, [cadetId]: undefined }));
+
+    startTransition(async () => {
+      const result = await revokeCadetResetLinkAction({ cadetId });
+      setBusyCadetId(null);
+
+      if (result.ok && result.entry) {
+        onEntryUpdated(result.entry);
+        setUrlByCadet((current) => {
+          const next = { ...current };
+          delete next[cadetId];
+          return next;
+        });
+        setStatus(cadetId, { kind: "ok", message: "Revoked." });
+        return;
+      }
+
+      setStatus(cadetId, { kind: "error", message: result.error ?? "Unable to revoke." });
+    });
+  };
+
+  const handleCopy = async (cadetId: string) => {
+    const url = urlByCadet[cadetId];
+    if (!url) {
+      setStatus(cadetId, {
+        kind: "error",
+        message: "Link unavailable in this session. Reset to regenerate.",
+      });
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      setStatus(cadetId, { kind: "ok", message: "Copied." });
+    } catch {
+      setStatus(cadetId, { kind: "error", message: "Copy failed." });
+    }
+  };
+
+  const handleExportCsv = () => {
+    const csv = buildOnboardingCsv(entries, urlByCadet);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "cadet-onboarding-links.csv";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-[2rem] border border-black/10 bg-white/92 p-5 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">
+              Instructor Tool
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold text-slate-900">Onboard trainees</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Generate password setup/reset links for cadets. Links are shown once after
+              generation; copy or export them before leaving this page.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="self-start rounded-2xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            Export CSV
+          </button>
+        </div>
+
+        <div className="mt-5 overflow-x-auto">
+          <table className="min-w-full divide-y divide-black/10 text-left text-sm">
+            <thead>
+              <tr className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                <th className="px-3 py-2">Name</th>
+                <th className="px-3 py-2">Reset link / Notes</th>
+                <th className="px-3 py-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-black/5">
+              {entries.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="px-3 py-6 text-center text-slate-500">
+                    No active cadets to onboard.
+                  </td>
+                </tr>
+              ) : (
+                entries.map((entry) => {
+                  const url = urlByCadet[entry.cadetId];
+                  const status = rowStatus[entry.cadetId];
+                  const isBusy = busyCadetId === entry.cadetId;
+                  const hasActive = entry.hasActiveToken;
+
+                  return (
+                    <tr key={entry.cadetId}>
+                      <td className="px-3 py-3 align-top font-medium text-slate-900">
+                        {entry.displayName}
+                      </td>
+                      <td className="px-3 py-3 align-top text-slate-700">
+                        {hasActive ? (
+                          url ? (
+                            <code className="block max-w-[28rem] truncate rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-800">
+                              {url}
+                            </code>
+                          ) : (
+                            <span className="text-xs text-slate-500">
+                              Active reset link (regenerate to view URL)
+                            </span>
+                          )
+                        ) : (
+                          <span className="text-xs text-slate-500">
+                            {entry.lastRevokedReason ?? "No active reset link"}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 align-top">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {hasActive ? (
+                            <>
+                              <button
+                                type="button"
+                                disabled={pending || isBusy || !url}
+                                onClick={() => handleCopy(entry.cadetId)}
+                                className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                              >
+                                Copy
+                              </button>
+                              <button
+                                type="button"
+                                disabled={pending || isBusy}
+                                onClick={() => handleGenerate(entry.cadetId)}
+                                className="rounded-2xl bg-teal-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
+                              >
+                                {isBusy ? "Working..." : "Reset"}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={pending || isBusy}
+                                onClick={() => handleRevoke(entry.cadetId)}
+                                className="rounded-2xl border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+                              >
+                                Revoke
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={pending || isBusy}
+                              onClick={() => handleGenerate(entry.cadetId)}
+                              className="rounded-2xl bg-teal-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
+                            >
+                              {isBusy ? "Generating..." : "Generate reset link"}
+                            </button>
+                          )}
+                          {status ? (
+                            <span
+                              className={`text-xs font-medium ${
+                                status.kind === "ok" ? "text-teal-700" : "text-red-600"
+                              }`}
+                            >
+                              {status.message}
+                            </span>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );
@@ -804,9 +1665,14 @@ export function InstructorDashboard({ initialOverview = null }: { initialOvervie
     useState<InstructorOverview["strengthBuckets"][number]["key"]>(
       initialOverview?.strengthBuckets.find((bucket) => bucket.count > 0)?.key ?? "current_fit",
     );
-  const [loginValues, setLoginValues] = useState({
+  const [loginValues, setLoginValues] = useState<{
+    batchName: string;
+    instructorPassword: string;
+    rememberDuration: InstructorRememberDuration;
+  }>({
     batchName: initialOverview?.account.batchName ?? "",
     instructorPassword: "",
+    rememberDuration: "1d",
   });
   const [batchNameValues, setBatchNameValues] = useState({
     batchName: initialOverview?.account.batchName ?? "",
@@ -830,7 +1696,7 @@ export function InstructorDashboard({ initialOverview = null }: { initialOvervie
               </p>
             </div>
             <Link
-              href="/cwc/login"
+              href="/cadet/login"
               className="inline-flex rounded-2xl border border-black/10 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
             >
               Back to login
@@ -916,6 +1782,40 @@ export function InstructorDashboard({ initialOverview = null }: { initialOvervie
               />
             </div>
 
+            <fieldset className="space-y-2">
+              <legend className="block text-sm font-medium text-slate-700">Remember me</legend>
+              <div className="flex flex-wrap gap-2">
+                {REMEMBER_DURATION_OPTIONS.map((option) => {
+                  const checked = loginValues.rememberDuration === option.value;
+                  return (
+                    <label
+                      key={option.value}
+                      className={`flex cursor-pointer items-center gap-2 rounded-2xl border px-4 py-2 text-sm transition ${
+                        checked
+                          ? "border-teal-700 bg-teal-50 text-teal-900"
+                          : "border-black/10 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="instructorRememberDuration"
+                        value={option.value}
+                        checked={checked}
+                        onChange={() =>
+                          setLoginValues((current) => ({
+                            ...current,
+                            rememberDuration: option.value,
+                          }))
+                        }
+                        className="h-4 w-4 accent-teal-700"
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+
             {status ? <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">{status}</p> : null}
 
             <button
@@ -981,6 +1881,13 @@ export function InstructorDashboard({ initialOverview = null }: { initialOvervie
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-7xl px-4 py-8 sm:px-6">
+      <InstructorMobileNav
+        accountLabel={accountLabel}
+        activeSection={activeSection}
+        onSectionChange={setActiveSection}
+        onSignOut={handleInstructorSignOut}
+      />
+
       <div className="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
         <InstructorSidebar
           accountLabel={accountLabel}
@@ -994,6 +1901,60 @@ export function InstructorDashboard({ initialOverview = null }: { initialOvervie
             overview={overview}
             activeStrengthBucketKey={activeStrengthBucketKey}
             onStrengthBucketChange={setActiveStrengthBucketKey}
+          />
+        ) : activeSection === "requests" ? (
+          <InstructorRequestsSection
+            requests={overview.pendingReportSickRequests}
+            onRequestResolved={(requestId) =>
+              setOverview((current) =>
+                current
+                  ? {
+                      ...current,
+                      pendingReportSickRequests: current.pendingReportSickRequests.filter(
+                        (request) => request.requestId !== requestId,
+                      ),
+                    }
+                  : current,
+              )
+            }
+          />
+        ) : activeSection === "assign_kah" ? (
+          <InstructorAssignKahSection
+            assignments={overview.kahAssignments}
+            onAssignmentSaved={(cadet) =>
+              setOverview((current) =>
+                current
+                  ? {
+                      ...current,
+                      kahAssignments: current.kahAssignments.map((entry) =>
+                        entry.cadetId === cadet.cadetId
+                          ? {
+                              cadetId: cadet.cadetId,
+                              displayName: cadet.displayName,
+                              appointmentHolder: cadet.appointmentHolder,
+                            }
+                          : entry,
+                      ),
+                    }
+                  : current,
+              )
+            }
+          />
+        ) : activeSection === "onboard" ? (
+          <InstructorOnboardSection
+            entries={overview.onboarding}
+            onEntryUpdated={(entry) =>
+              setOverview((current) =>
+                current
+                  ? {
+                      ...current,
+                      onboarding: current.onboarding.map((existing) =>
+                        existing.cadetId === entry.cadetId ? entry : existing,
+                      ),
+                    }
+                  : current,
+              )
+            }
           />
         ) : (
           <InstructorSettingsSection

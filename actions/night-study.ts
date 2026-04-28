@@ -5,8 +5,13 @@ import { revalidatePath } from "next/cache";
 import { failure, success, type ActionResult } from "@/actions/helpers";
 import { ensureUserConfiguration, getNightStudyCadetGroups } from "@/lib/db";
 import { resolveNightStudyAssignments } from "@/lib/night-study";
+import {
+  syncNightStudyDraftFromCadets,
+  type NightStudyCadetSyncDraft,
+  type NightStudyCadetSyncSummary,
+} from "@/lib/night-study-sync";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireCwcUser, requireUser } from "@/lib/session";
 import { nightStudyDraftSchema } from "@/lib/validators/night-study";
 
 export async function updateNightStudyDraftAction(input: {
@@ -55,4 +60,27 @@ export async function updateNightStudyDraftAction(input: {
   revalidatePath("/cwc/night-study");
   revalidatePath("/cwc/troop-movement");
   return success("Night study groups saved.");
+}
+
+export async function syncNightStudyFromCadets(): Promise<
+  ActionResult & { summary?: NightStudyCadetSyncSummary; draft?: NightStudyCadetSyncDraft }
+> {
+  const session = await requireCwcUser();
+  const userId = session.userId;
+
+  const result = await syncNightStudyDraftFromCadets(userId);
+
+  if (!result.ok) {
+    return failure(result.error);
+  }
+
+  revalidatePath("/cwc/night-study");
+  revalidatePath("/cwc/troop-movement");
+
+  return {
+    ok: true,
+    message: "Cadet night study choices imported.",
+    summary: result.summary,
+    draft: result.draft,
+  };
 }

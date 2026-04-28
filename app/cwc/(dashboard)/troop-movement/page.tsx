@@ -1,6 +1,5 @@
 import { MovementPreview } from "@/components/generators/movement-preview";
 import { renderWithDatabaseWakeupFallback } from "@/lib/database-wakeup";
-import { buildNightStudyRemarkSuggestions } from "@/lib/night-study";
 import {
   buildNightStudyContext,
   buildTroopMovementContext,
@@ -18,6 +17,19 @@ export default async function TroopMovementPage() {
       getTroopMovements(userId),
       buildNightStudyContext(userId),
     ]);
+    const nightStudyErrors = nightStudyContext.resolved.errors;
+    const nightStudyRemarkSuggestions =
+      nightStudyErrors.length || !nightStudyContext.resolved.nightStudyNames.length
+        ? []
+        : [{ group: "Night study", names: nightStudyContext.resolved.nightStudyNames }];
+    const earlyPartyRemarkSuggestions =
+      nightStudyErrors.length || !nightStudyContext.resolved.earlyPartyNames.length
+        ? []
+        : [{ group: "Early party", names: nightStudyContext.resolved.earlyPartyNames }];
+    const goBackBunkRemarkSuggestions =
+      nightStudyErrors.length || !nightStudyContext.resolved.goBackBunkNames.length
+        ? []
+        : [{ group: "Go back bunk", names: nightStudyContext.resolved.goBackBunkNames }];
 
     return (
       <MovementPreview
@@ -32,12 +44,10 @@ export default async function TroopMovementPage() {
         initialStrengthText={settingsBundle.settings.movementDraftStrengthText}
         initialArrivalTimeText={settingsBundle.settings.movementDraftArrivalTimeText}
         initialRemarksText={settingsBundle.settings.movementDraftRemarksText}
-        nightStudyRemarkSuggestions={
-          nightStudyContext.resolved.errors.length
-            ? []
-            : buildNightStudyRemarkSuggestions(nightStudyContext.resolved)
-        }
-        nightStudyErrors={nightStudyContext.resolved.errors}
+        nightStudyRemarkSuggestions={nightStudyRemarkSuggestions}
+        earlyPartyRemarkSuggestions={earlyPartyRemarkSuggestions}
+        goBackBunkRemarkSuggestions={goBackBunkRemarkSuggestions}
+        nightStudyErrors={nightStudyErrors}
         history={history}
       />
     );

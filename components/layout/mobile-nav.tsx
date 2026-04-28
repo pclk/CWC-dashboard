@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 
 import { logoutAction } from "@/actions/auth";
-import { NAV_ITEMS } from "@/lib/navigation";
+import { isActiveNavigationHref, NAV_ITEMS } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 export function MobileNav({
@@ -19,7 +19,7 @@ export function MobileNav({
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const drawerId = useId();
-  const activeItem = NAV_ITEMS.find((item) => item.href === pathname);
+  const activeItem = NAV_ITEMS.find((item) => isActiveNavigationHref(pathname, item.href));
 
   useEffect(() => {
     if (!open) {
@@ -126,7 +126,7 @@ export function MobileNav({
 
           <nav className="flex-1 space-y-1 overflow-y-auto px-4 py-4">
             {NAV_ITEMS.map((item) => {
-              const active = pathname === item.href;
+              const active = isActiveNavigationHref(pathname, item.href);
 
               return (
                 <div key={item.href} className={item.separatorBefore ? "mt-3 border-t border-black/10 pt-3" : ""}>

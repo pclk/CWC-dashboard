@@ -19,7 +19,7 @@ function getSessionPasswordFingerprint(passwordHash: string) {
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   pages: {
-    signIn: "/cwc/login",
+    signIn: "/cadet/login",
   },
   session: {
     strategy: "jwt",

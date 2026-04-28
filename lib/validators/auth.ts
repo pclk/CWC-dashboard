@@ -35,11 +35,37 @@ export const adminChangeInstructorPasswordSchema = z
     path: ["confirmPassword"],
   });
 
+export const instructorRememberDurationSchema = z
+  .enum(["1d", "7d", "30d"])
+  .default("1d");
+
+export type InstructorRememberDuration = z.infer<typeof instructorRememberDurationSchema>;
+
 export const instructorDashboardLoginSchema = z.object({
   batchName: batchNameSchema,
   instructorPassword: z.string().min(1, "Instructor password is required."),
+  rememberDuration: instructorRememberDurationSchema,
 });
 
 export const instructorChangeBatchNameSchema = z.object({
   batchName: batchNameSchema,
 });
+
+export const KAH_APPOINTMENT_HOLDER_VALUES = ["", "CWC"] as const;
+export type KahAppointmentHolder = (typeof KAH_APPOINTMENT_HOLDER_VALUES)[number];
+
+export const assignCadetAppointmentHolderSchema = z.object({
+  cadetId: z.string().trim().min(1, "Cadet is required."),
+  appointmentHolder: z.enum(KAH_APPOINTMENT_HOLDER_VALUES),
+});
+
+export const cadetResetPasswordSchema = z
+  .object({
+    token: z.string().min(1, "Reset token is required."),
+    password: z.string().min(8, "Password must be at least 8 characters.").max(128),
+    confirmPassword: z.string(),
+  })
+  .refine((value) => value.password === value.confirmPassword, {
+    message: "Passwords do not match.",
+    path: ["confirmPassword"],
+  });

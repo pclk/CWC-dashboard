@@ -17,9 +17,11 @@ export function NightStudyRosterList({
   selectedIds,
   activeFilter,
   onClearFilter,
+  onSelectAllShown,
+  onClearSelection,
   onSelectedChange,
   onAssign,
-  }: {
+}: {
   people: NightStudyRosterPerson[];
   totalCount: number;
   groups: NightStudyGroupMeta[];
@@ -27,9 +29,14 @@ export function NightStudyRosterList({
   selectedIds: string[];
   activeFilter: NightStudyFilter;
   onClearFilter: () => void;
+  onSelectAllShown: () => void;
+  onClearSelection: () => void;
   onSelectedChange: (personId: string, nextSelected: boolean) => void;
   onAssign: (personId: string, group: NightStudyAssignmentGroup) => void;
 }) {
+  const visibleSelectedCount = people.filter((person) => selectedIds.includes(person.id)).length;
+  const allVisibleSelected = people.length > 0 && visibleSelectedCount === people.length;
+
   return (
     <section className="overflow-hidden rounded-[2rem] border border-black/10 bg-white/95 shadow-sm">
       <div className="flex flex-col gap-2 border-b border-black/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -40,9 +47,27 @@ export function NightStudyRosterList({
           </p>
         </div>
         {bulkMode ? (
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
-            Selection enabled
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+              {selectedIds.length} selected
+            </p>
+            <button
+              type="button"
+              disabled={!people.length || allVisibleSelected}
+              onClick={onSelectAllShown}
+              className="rounded-2xl border border-black/10 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Select all shown
+            </button>
+            <button
+              type="button"
+              disabled={!selectedIds.length}
+              onClick={onClearSelection}
+              className="rounded-2xl border border-black/10 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Clear selection
+            </button>
+          </div>
         ) : null}
       </div>
 

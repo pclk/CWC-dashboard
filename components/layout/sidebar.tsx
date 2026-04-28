@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { logoutAction } from "@/actions/auth";
-import { NAV_ITEMS } from "@/lib/navigation";
+import { isActiveNavigationHref, NAV_ITEMS } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 export function Sidebar({
@@ -29,7 +29,7 @@ export function Sidebar({
 
         <nav className="mt-5 flex-1 space-y-1 overflow-y-auto pr-1">
           {NAV_ITEMS.map((item) => {
-            const active = pathname === item.href;
+            const active = isActiveNavigationHref(pathname, item.href);
 
             return (
               <div key={item.href} className={item.separatorBefore ? "mt-3 border-t border-black/10 pt-3" : ""}>

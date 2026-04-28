@@ -19,5 +19,8 @@ export const NAV_ITEMS: readonly NavigationItem[] = [
   { href: "/cwc/current-affairs", label: "Current Affairs", shortLabel: "Current" },
   { href: "/cwc/book-in", label: "Book-In", shortLabel: "Book-In" },
   { href: "/cwc/settings", label: "Settings", shortLabel: "Settings" },
-  { href: "/cwc/instructors", label: "Instructors", shortLabel: "Instr", separatorBefore: true },
 ] as const;
+
+export function isActiveNavigationHref(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}

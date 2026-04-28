@@ -13,7 +13,7 @@ export async function requirePageUser() {
   const session = await auth();
 
   if (!session?.user?.id || !session.user.sessionId) {
-    redirect("/cwc/login");
+    redirect("/cadet/login");
   }
 
   return session.user;
@@ -23,7 +23,7 @@ export async function requireSessionUser() {
   const session = await auth();
 
   if (!session?.user?.id || !session.user.sessionId) {
-    redirect("/cwc/login");
+    redirect("/cadet/login");
   }
 
   return session.user;
@@ -35,7 +35,7 @@ export async function requireUser() {
   const sessionId = session?.user?.sessionId;
 
   if (!userId || !sessionId) {
-    redirect("/cwc/login");
+    redirect("/cadet/login");
   }
 
   return userId;
@@ -48,7 +48,7 @@ export async function requireCwcUser() {
   const cadetId = session?.user?.cadetId;
 
   if (!userId || !sessionId || !cadetId) {
-    redirect("/cwc/login");
+    redirect("/cadet/login");
   }
 
   const cadet = await prisma.cadet.findUnique({
@@ -68,7 +68,7 @@ export async function requireCwcUser() {
     !cadet.active ||
     cadet.appointmentHolder !== CWC_APPOINTMENT_HOLDER
   ) {
-    redirect("/cwc/login");
+    redirect("/cadet/login");
   }
 
   return {

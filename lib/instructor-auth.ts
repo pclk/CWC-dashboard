@@ -8,10 +8,21 @@ import { getSessionDeviceMetadataFromHeaders } from "@/lib/session-metadata";
 
 const INSTRUCTOR_SESSION_COOKIE_NAME = "cwc_instructor_session";
 const INSTRUCTOR_SESSION_COOKIE_PATH = "/cwc/instructors";
-const INSTRUCTOR_SESSION_MAX_AGE_SECONDS = 12 * 60 * 60;
 const INSTRUCTOR_SESSION_LAST_SEEN_WRITE_INTERVAL_MS = 60_000;
 const INSTRUCTOR_SESSION_VERSION = 1;
 const INSTRUCTOR_PASSWORD_FINGERPRINT_PREFIX = "cwc-dashboard-instructor-password-v1";
+
+const ONE_DAY_SECONDS = 24 * 60 * 60;
+
+export type InstructorRememberDuration = "1d" | "7d" | "30d";
+
+const INSTRUCTOR_REMEMBER_DURATION_SECONDS: Record<InstructorRememberDuration, number> = {
+  "1d": ONE_DAY_SECONDS,
+  "7d": 7 * ONE_DAY_SECONDS,
+  "30d": 30 * ONE_DAY_SECONDS,
+};
+
+const DEFAULT_INSTRUCTOR_REMEMBER_DURATION: InstructorRememberDuration = "1d";
 
 const instructorSessionTokenSchema = z.object({
   v: z.literal(INSTRUCTOR_SESSION_VERSION),
@@ -108,12 +119,17 @@ async function revokeInstructorSession(sessionId: string, reason: string) {
   });
 }
 
-export async function createInstructorSession(user: {
-  id: string;
-  batchName: string;
-  displayName: string | null;
-  instructorPasswordHash: string;
-}) {
+export async function createInstructorSession(
+  user: {
+    id: string;
+    batchName: string;
+    displayName: string | null;
+    instructorPasswordHash: string;
+  },
+  options?: { rememberDuration?: InstructorRememberDuration },
+) {
+  const rememberDuration = options?.rememberDuration ?? DEFAULT_INSTRUCTOR_REMEMBER_DURATION;
+  const maxAgeSeconds = INSTRUCTOR_REMEMBER_DURATION_SECONDS[rememberDuration];
   const requestHeaders = await headers();
   const deviceMetadata = getSessionDeviceMetadataFromHeaders(requestHeaders);
   const signedInAt = new Date();
@@ -131,7 +147,7 @@ export async function createInstructorSession(user: {
     },
   });
   const nowSeconds = Math.floor(Date.now() / 1000);
-  const expiresAtSeconds = nowSeconds + INSTRUCTOR_SESSION_MAX_AGE_SECONDS;
+  const expiresAtSeconds = nowSeconds + maxAgeSeconds;
   const payload: InstructorSessionTokenPayload = {
     v: INSTRUCTOR_SESSION_VERSION,
     sid: instructorSession.id,
@@ -149,7 +165,7 @@ export async function createInstructorSession(user: {
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: INSTRUCTOR_SESSION_COOKIE_PATH,
-    maxAge: INSTRUCTOR_SESSION_MAX_AGE_SECONDS,
+    maxAge: maxAgeSeconds,
   });
 
   return {

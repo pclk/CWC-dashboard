@@ -56,7 +56,7 @@ export async function createInitialUserAction(
   const existingUserCount = await prisma.user.count();
 
   if (existingUserCount > 0) {
-    redirect("/cwc/login");
+    redirect("/cadet/login");
   }
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
@@ -111,6 +111,6 @@ export async function createInitialUserAction(
 
 export async function logoutAction() {
   await signOut({
-    redirectTo: "/cwc/login",
+    redirectTo: "/cadet/login",
   });
 }

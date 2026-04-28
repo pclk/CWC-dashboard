@@ -10,6 +10,7 @@ import {
   createInstructorSession,
   getInstructorSession,
 } from "@/lib/instructor-auth";
+import { createCadetResetLink, revokeCadetResetToken } from "@/lib/cadet-reset";
 import { formatDisplayDateTime, getSingaporeDayBounds, getSingaporeStrengthPeriod } from "@/lib/date";
 import {
   buildParadeStateInput,
@@ -22,8 +23,10 @@ import {
 import { prisma } from "@/lib/prisma";
 import { getRecordCategoryLabel, RECORD_CATEGORY_VALUES, type AppRecordCategory } from "@/lib/record-categories";
 import {
+  assignCadetAppointmentHolderSchema,
   instructorChangeBatchNameSchema,
   instructorDashboardLoginSchema,
+  type InstructorRememberDuration,
 } from "@/lib/validators/auth";
 
 type InstructorPerson = {
@@ -94,6 +97,31 @@ export type InstructorOverview = {
       }>;
     }>;
   };
+  kahAssignments: Array<{
+    cadetId: string;
+    displayName: string;
+    appointmentHolder: string | null;
+  }>;
+  onboarding: Array<{
+    cadetId: string;
+    displayName: string;
+    hasActiveToken: boolean;
+    resetTokenExpiresAt: string | null;
+    lastRevokedReason: string | null;
+    notes: string | null;
+  }>;
+  pendingReportSickRequests: Array<{
+    requestId: string;
+    cadetId: string;
+    cadetDisplayName: string;
+    category: string;
+    title: string | null;
+    details: string | null;
+    startAt: string | null;
+    endAt: string | null;
+    unknownEndTime: boolean;
+    createdAt: string;
+  }>;
 };
 
 export type InstructorOverviewResult = ActionResult & {
@@ -200,22 +228,50 @@ async function buildInstructorOverview(user: {
   const now = new Date();
   const todayBounds = getSingaporeDayBounds(now);
   await prisma.$transaction((tx) => syncUserCadetRecordStats(tx, user.id));
-  const [activeCadets, operationalRecords, summary, todayAppointments, settingsBundle, paradeInput, recordStats] =
-    await Promise.all([
-      getActiveCadets(user.id),
-      getOperationalRecords(user.id),
-      computeStrengthSummary(user.id, now),
-      getUpcomingAppointments(user.id, todayBounds.start, todayBounds.end),
-      getSettingsAndTemplates(user.id),
-      buildParadeStateInput(user.id, {
-        reportType: "Custom",
-        reportAt: now,
-      }),
-      prisma.cadetRecordStat.findMany({
-        where: { userId: user.id },
-        orderBy: [{ category: "asc" }],
-      }),
-    ]);
+  const [
+    activeCadets,
+    operationalRecords,
+    summary,
+    todayAppointments,
+    settingsBundle,
+    paradeInput,
+    recordStats,
+    pendingReportSickRequestsRaw,
+  ] = await Promise.all([
+    getActiveCadets(user.id),
+    getOperationalRecords(user.id),
+    computeStrengthSummary(user.id, now),
+    getUpcomingAppointments(user.id, todayBounds.start, todayBounds.end),
+    getSettingsAndTemplates(user.id),
+    buildParadeStateInput(user.id, {
+      reportType: "Custom",
+      reportAt: now,
+    }),
+    prisma.cadetRecordStat.findMany({
+      where: { userId: user.id },
+      orderBy: [{ category: "asc" }],
+    }),
+    prisma.cadetRequest.findMany({
+      where: {
+        userId: user.id,
+        type: "REPORT_SICK",
+        status: "PENDING_INSTRUCTOR",
+      },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        cadetId: true,
+        category: true,
+        title: true,
+        details: true,
+        startAt: true,
+        endAt: true,
+        unknownEndTime: true,
+        createdAt: true,
+        cadet: { select: { displayName: true } },
+      },
+    }),
+  ]);
   const activeCadetIds = new Set(activeCadets.map((cadet) => cadet.id));
   const statsByCadetId = new Map<string, typeof recordStats>();
 
@@ -452,12 +508,48 @@ async function buildInstructorOverview(user: {
           })),
       })),
     },
+    kahAssignments: activeCadets.map((cadet) => ({
+      cadetId: cadet.id,
+      displayName: cadet.displayName,
+      appointmentHolder: cadet.appointmentHolder ?? null,
+    })),
+    pendingReportSickRequests: pendingReportSickRequestsRaw.map((request) => ({
+      requestId: request.id,
+      cadetId: request.cadetId,
+      cadetDisplayName: request.cadet.displayName,
+      category: request.category,
+      title: request.title,
+      details: request.details,
+      startAt: request.startAt ? request.startAt.toISOString() : null,
+      endAt: request.endAt ? request.endAt.toISOString() : null,
+      unknownEndTime: request.unknownEndTime,
+      createdAt: request.createdAt.toISOString(),
+    })),
+    onboarding: activeCadets.map((cadet) => {
+      const hasActiveToken =
+        Boolean(cadet.resetTokenHash) &&
+        !cadet.resetTokenRevokedAt &&
+        Boolean(cadet.resetTokenExpiresAt) &&
+        (cadet.resetTokenExpiresAt as Date).getTime() > now.getTime();
+
+      return {
+        cadetId: cadet.id,
+        displayName: cadet.displayName,
+        hasActiveToken,
+        resetTokenExpiresAt: hasActiveToken
+          ? (cadet.resetTokenExpiresAt as Date).toISOString()
+          : null,
+        lastRevokedReason: cadet.resetTokenRevokedReason ?? null,
+        notes: cadet.notes ?? null,
+      };
+    }),
   } satisfies InstructorOverview;
 }
 
 export async function instructorDashboardLoginAction(input: {
   batchName: string;
   instructorPassword: string;
+  rememberDuration?: InstructorRememberDuration;
 }): Promise<InstructorOverviewResult> {
   const parsed = instructorDashboardLoginSchema.safeParse(input);
 
@@ -471,7 +563,7 @@ export async function instructorDashboardLoginAction(input: {
     return failure("Invalid instructor credentials.");
   }
 
-  await createInstructorSession(user);
+  await createInstructorSession(user, { rememberDuration: parsed.data.rememberDuration });
   revalidatePath("/cwc/instructors");
 
   return {
@@ -541,5 +633,150 @@ export async function changeBatchNameAsInstructorAction(input: {
     ok: true,
     message: "Batch name updated.",
     batchName: parsed.data.batchName,
+  };
+}
+
+export async function assignCadetAppointmentHolderAction(input: {
+  cadetId: string;
+  appointmentHolder: string;
+}): Promise<
+  ActionResult & {
+    cadet?: { id: string; displayName: string; appointmentHolder: string | null };
+  }
+> {
+  const parsed = assignCadetAppointmentHolderSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return failure(parsed.error.issues[0]?.message ?? "Invalid appointment payload.");
+  }
+
+  const session = await getInstructorSession();
+
+  if (!session) {
+    return failure("Instructor session expired. Sign in again.");
+  }
+
+  const nextValue =
+    parsed.data.appointmentHolder === "" ? null : parsed.data.appointmentHolder;
+
+  const updated = await prisma.cadet.updateMany({
+    where: {
+      id: parsed.data.cadetId,
+      userId: session.userId,
+      active: true,
+    },
+    data: { appointmentHolder: nextValue },
+  });
+
+  if (updated.count === 0) {
+    return failure("Cadet not found.");
+  }
+
+  const cadet = await prisma.cadet.findUnique({
+    where: { id: parsed.data.cadetId },
+    select: { id: true, displayName: true, appointmentHolder: true },
+  });
+
+  revalidatePath("/cwc/instructors");
+
+  return {
+    ok: true,
+    message: "Appointment updated.",
+    cadet: cadet
+      ? {
+          id: cadet.id,
+          displayName: cadet.displayName,
+          appointmentHolder: cadet.appointmentHolder ?? null,
+        }
+      : undefined,
+  };
+}
+
+export type CadetOnboardingEntry = InstructorOverview["onboarding"][number] & {
+  url?: string;
+};
+
+async function assertInstructorOwnsCadet(cadetId: string, userId: string) {
+  const cadet = await prisma.cadet.findFirst({
+    where: { id: cadetId, userId, active: true },
+    select: { id: true, displayName: true, notes: true },
+  });
+
+  return cadet;
+}
+
+export async function generateCadetResetLinkAction(input: {
+  cadetId: string;
+}): Promise<ActionResult & { entry?: CadetOnboardingEntry }> {
+  if (!input?.cadetId || typeof input.cadetId !== "string") {
+    return failure("Cadet is required.");
+  }
+
+  const session = await getInstructorSession();
+
+  if (!session) {
+    return failure("Instructor session expired. Sign in again.");
+  }
+
+  const cadet = await assertInstructorOwnsCadet(input.cadetId, session.userId);
+
+  if (!cadet) {
+    return failure("Cadet not found.");
+  }
+
+  const link = await createCadetResetLink(cadet.id);
+
+  revalidatePath("/cwc/instructors");
+
+  return {
+    ok: true,
+    message: "Reset link generated.",
+    entry: {
+      cadetId: cadet.id,
+      displayName: cadet.displayName,
+      hasActiveToken: true,
+      resetTokenExpiresAt: link.expiresAt.toISOString(),
+      lastRevokedReason: null,
+      notes: cadet.notes ?? null,
+      url: link.url,
+    },
+  };
+}
+
+export async function revokeCadetResetLinkAction(input: {
+  cadetId: string;
+}): Promise<ActionResult & { entry?: CadetOnboardingEntry }> {
+  if (!input?.cadetId || typeof input.cadetId !== "string") {
+    return failure("Cadet is required.");
+  }
+
+  const session = await getInstructorSession();
+
+  if (!session) {
+    return failure("Instructor session expired. Sign in again.");
+  }
+
+  const cadet = await assertInstructorOwnsCadet(input.cadetId, session.userId);
+
+  if (!cadet) {
+    return failure("Cadet not found.");
+  }
+
+  const reason = "Instructor has revoked token";
+  await revokeCadetResetToken(cadet.id, reason);
+
+  revalidatePath("/cwc/instructors");
+
+  return {
+    ok: true,
+    message: "Reset link revoked.",
+    entry: {
+      cadetId: cadet.id,
+      displayName: cadet.displayName,
+      hasActiveToken: false,
+      resetTokenExpiresAt: null,
+      lastRevokedReason: reason,
+      notes: cadet.notes ?? null,
+    },
   };
 }

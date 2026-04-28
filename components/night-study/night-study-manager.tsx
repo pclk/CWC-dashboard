@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 
-import { updateNightStudyDraftAction } from "@/actions/night-study";
+import { syncNightStudyFromCadets, updateNightStudyDraftAction } from "@/actions/night-study";
 import { NightStudyBoardHeader } from "@/components/night-study/night-study-board-header";
 import { NightStudyGroupSummary } from "@/components/night-study/night-study-group-summary";
 import { NightStudyMobileSummaryBar } from "@/components/night-study/night-study-mobile-summary-bar";
@@ -25,6 +25,43 @@ import {
   type NightStudyMode,
   type NightStudyRosterPerson,
 } from "@/lib/night-study";
+import type { NightStudyCadetSyncSummary } from "@/lib/night-study-sync";
+
+function formatCadetChoiceSummary(summary: NightStudyCadetSyncSummary) {
+  return `${summary.imported} cadet choices: ${summary.nightStudy} Night Study, ${summary.earlyParty} Early Party, ${summary.goBackBunk} Go Back Bunk`;
+}
+
+function buildInitialStatus(input: {
+  autoSyncSummary?: NightStudyCadetSyncSummary | null;
+  cadetChoicesAvailableSummary?: NightStudyCadetSyncSummary | null;
+  autoSyncError?: string | null;
+}) {
+  if (input.autoSyncError) {
+    return {
+      message: `Unable to auto-sync Night Study: ${input.autoSyncError}`,
+      tone: "warning" as const,
+    };
+  }
+
+  if (input.autoSyncSummary) {
+    return {
+      message: `Auto-loaded records and appointments, then imported ${formatCadetChoiceSummary(input.autoSyncSummary)}.`,
+      tone: "success" as const,
+    };
+  }
+
+  if (input.cadetChoicesAvailableSummary) {
+    return {
+      message: `Cadet choices are available (${formatCadetChoiceSummary(input.cadetChoicesAvailableSummary)}). Use Sync with Cadets to import them.`,
+      tone: "warning" as const,
+    };
+  }
+
+  return {
+    message: null,
+    tone: "default" as const,
+  };
+}
 
 export function NightStudyManager({
   activeCadets,
@@ -33,6 +70,9 @@ export function NightStudyManager({
   initialPrimaryNamesText,
   initialEarlyPartyNamesText,
   initialOtherNamesText,
+  initialAutoSyncSummary,
+  initialCadetChoicesAvailableSummary,
+  initialAutoSyncError,
 }: {
   activeCadets: NightStudyCadet[];
   automaticOthersNames: string[];
@@ -40,7 +80,19 @@ export function NightStudyManager({
   initialPrimaryNamesText: string;
   initialEarlyPartyNamesText: string;
   initialOtherNamesText: string;
+  initialAutoSyncSummary?: NightStudyCadetSyncSummary | null;
+  initialCadetChoicesAvailableSummary?: NightStudyCadetSyncSummary | null;
+  initialAutoSyncError?: string | null;
 }) {
+  const initialStatus = useMemo(
+    () =>
+      buildInitialStatus({
+        autoSyncSummary: initialAutoSyncSummary,
+        cadetChoicesAvailableSummary: initialCadetChoicesAvailableSummary,
+        autoSyncError: initialAutoSyncError,
+      }),
+    [initialAutoSyncError, initialAutoSyncSummary, initialCadetChoicesAvailableSummary],
+  );
   const initialResolved = useMemo(
     () =>
       resolveNightStudyAssignments({
@@ -73,9 +125,13 @@ export function NightStudyManager({
   const [filterGroup, setFilterGroup] = useState<NightStudyFilter>("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkMode, setBulkMode] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(initialStatus.message);
+  const [statusTone, setStatusTone] = useState<"default" | "success" | "warning">(
+    initialStatus.tone,
+  );
   const [copied, setCopied] = useState(false);
-  const [pending, startTransition] = useTransition();
+  const [savePending, startSaveTransition] = useTransition();
+  const [syncPending, startSyncTransition] = useTransition();
 
   const groups = useMemo(() => getNightStudyGroupMeta(mode), [mode]);
   const groupCounts = useMemo(() => getNightStudyGroupCounts(people), [people]);
@@ -105,6 +161,7 @@ export function NightStudyManager({
 
   function clearTransientStatus() {
     setStatus(null);
+    setStatusTone("default");
   }
 
   function handleAssign(personId: string, group: NightStudyAssignmentGroup) {
@@ -121,6 +178,20 @@ export function NightStudyManager({
       }
 
       return currentSelectedIds.filter((currentId) => currentId !== personId);
+    });
+  }
+
+  function handleSelectAllFiltered() {
+    const filteredIds = filteredPeople.map((person) => person.id);
+
+    setSelectedIds((currentSelectedIds) => {
+      const nextSelectedIds = new Set(currentSelectedIds);
+
+      for (const personId of filteredIds) {
+        nextSelectedIds.add(personId);
+      }
+
+      return Array.from(nextSelectedIds);
     });
   }
 
@@ -171,11 +242,12 @@ export function NightStudyManager({
       loadNightStudyOthersFromAutomaticSources(currentPeople, automaticOthersNames),
     );
     setSelectedIds([]);
+    setStatusTone("default");
     setStatus("Others loaded from records and evening appointments.");
   }
 
   function handleSave() {
-    startTransition(async () => {
+    startSaveTransition(async () => {
       const result = await updateNightStudyDraftAction({
         mode,
         primaryNamesText: serializedAssignments.primaryNamesText,
@@ -187,7 +259,58 @@ export function NightStudyManager({
         setSavedSnapshot(currentSnapshot);
       }
 
+      setStatusTone(result.ok ? "success" : "warning");
       setStatus(result.ok ? result.message ?? "Saved." : result.error ?? "Unable to save.");
+    });
+  }
+
+  function handleSyncWithCadets() {
+    if (
+      isDirty &&
+      !window.confirm("Syncing with cadets will replace unsaved Night Study edits. Continue?")
+    ) {
+      return;
+    }
+
+    startSyncTransition(async () => {
+      const result = await syncNightStudyFromCadets();
+
+      if (!result.ok) {
+        setStatusTone("warning");
+        setStatus(result.error ?? "Unable to sync cadet choices.");
+        return;
+      }
+
+      const summary = result.summary;
+      const summaryMessage = summary
+        ? `Imported ${formatCadetChoiceSummary(summary)}.`
+        : result.message ?? "Cadet choices imported.";
+
+      setStatusTone("success");
+      setStatus(summaryMessage);
+
+      if (result.draft) {
+        const nextPeople = buildNightStudyRosterPeople({
+          activeCadets,
+          primaryNames: result.draft.primaryNames,
+          earlyPartyNames: result.draft.earlyPartyNames,
+          othersNames: result.draft.othersNames,
+        });
+        const nextSerializedAssignments = serializeNightStudyRosterPeople(nextPeople);
+
+        setMode(result.draft.mode);
+        setPeople(nextPeople);
+        setSelectedIds([]);
+        setBulkMode(false);
+        setSavedSnapshot(
+          JSON.stringify({
+            mode: result.draft.mode,
+            primaryNamesText: nextSerializedAssignments.primaryNamesText,
+            earlyPartyNamesText: nextSerializedAssignments.earlyPartyNamesText,
+            otherNamesText: nextSerializedAssignments.otherNamesText,
+          }),
+        );
+      }
     });
   }
 
@@ -199,10 +322,12 @@ export function NightStudyManager({
         filterGroup={filterGroup}
         groups={groups}
         bulkMode={bulkMode}
-        pending={pending}
+        savePending={savePending}
+        syncPending={syncPending}
         copied={copied}
         isDirty={isDirty}
         status={status}
+        statusTone={statusTone}
         onModeChange={(nextMode) => {
           setMode(nextMode);
           clearTransientStatus();
@@ -212,6 +337,7 @@ export function NightStudyManager({
         onToggleBulkMode={handleToggleBulkMode}
         onCopySummary={handleCopySummary}
         onLoadAutomaticOthers={handleLoadAutomaticOthers}
+        onSyncWithCadets={handleSyncWithCadets}
         onReset={handleReset}
         onSave={handleSave}
       />
@@ -262,6 +388,8 @@ export function NightStudyManager({
             selectedIds={selectedIds}
             activeFilter={filterGroup}
             onClearFilter={() => setFilterGroup("all")}
+            onSelectAllShown={handleSelectAllFiltered}
+            onClearSelection={() => setSelectedIds([])}
             onSelectedChange={handleSelectedChange}
             onAssign={handleAssign}
           />
