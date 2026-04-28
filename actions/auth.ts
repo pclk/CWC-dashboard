@@ -15,7 +15,7 @@ export async function loginAction(
   formData: FormData,
 ): Promise<ActionResult | undefined> {
   const parsed = loginSchema.safeParse({
-    email: formData.get("email"),
+    batchName: formData.get("batchName"),
     password: formData.get("password"),
   });
 
@@ -25,13 +25,13 @@ export async function loginAction(
 
   try {
     await signIn("credentials", {
-      email: parsed.data.email,
+      batchName: parsed.data.batchName,
       password: parsed.data.password,
       redirectTo: "/dashboard",
     });
   } catch (error) {
     if (error instanceof AuthError) {
-      return failure("Invalid email or password.");
+      return failure("Invalid batch name or password.");
     }
 
     throw error;
@@ -44,7 +44,7 @@ export async function createInitialUserAction(
 ): Promise<ActionResult | undefined> {
   const parsed = setupSchema.safeParse({
     displayName: formData.get("displayName"),
-    email: formData.get("email"),
+    batchName: formData.get("batchName"),
     password: formData.get("password"),
     confirmPassword: formData.get("confirmPassword"),
   });
@@ -64,8 +64,9 @@ export async function createInitialUserAction(
   await prisma.$transaction(async (tx) => {
     const user = await tx.user.create({
       data: {
-        email: parsed.data.email,
+        batchName: parsed.data.batchName,
         passwordHash,
+        instructorPasswordHash: passwordHash,
         displayName: parsed.data.displayName || null,
       },
     });
@@ -95,7 +96,7 @@ export async function createInitialUserAction(
 
   try {
     await signIn("credentials", {
-      email: parsed.data.email,
+      batchName: parsed.data.batchName,
       password: parsed.data.password,
       redirectTo: "/dashboard",
     });

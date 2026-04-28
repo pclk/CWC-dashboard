@@ -11,10 +11,10 @@ import { cn } from "@/lib/utils";
 
 export function MobileNav({
   displayName,
-  email,
+  batchName,
 }: {
   displayName?: string | null;
-  email?: string | null;
+  batchName?: string | null;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -121,7 +121,7 @@ export function MobileNav({
             <p className="truncate text-base font-semibold text-slate-900">
               {displayName || "Authenticated user"}
             </p>
-            <p className="truncate text-sm text-slate-600">{email || "Signed in"}</p>
+            <p className="truncate text-sm text-slate-600">{batchName || "Signed in"}</p>
           </div>
 
           <nav className="flex-1 space-y-1 overflow-y-auto px-4 py-4">

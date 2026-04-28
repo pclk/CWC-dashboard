@@ -1,16 +1,16 @@
 import { z } from "zod";
 
-const emailSchema = z.email().transform((value) => value.trim().toLowerCase());
+export const batchNameSchema = z.string().trim().min(2).max(80);
 
 export const loginSchema = z.object({
-  email: emailSchema,
+  batchName: batchNameSchema,
   password: z.string(),
 });
 
 export const setupSchema = z
   .object({
     displayName: z.string().trim().min(2).max(80).optional().or(z.literal("")),
-    email: emailSchema,
+    batchName: batchNameSchema,
     password: z.string(),
     confirmPassword: z.string(),
   })
@@ -19,19 +19,25 @@ export const setupSchema = z
     path: ["confirmPassword"],
   });
 
-export const adminChangePasswordSchema = z
+export const adminLoginSchema = z.object({
+  adminPassword: z.string().min(1, "Admin password is required."),
+});
+
+export const adminChangeInstructorPasswordSchema = z
   .object({
-    email: emailSchema,
-    adminPassword: z.string().min(1, "Admin password is required."),
-    newPassword: z.string(),
-    confirmPassword: z.string(),
+    newPassword: z.string().min(1, "New password is required."),
+    confirmPassword: z.string().min(1, "Confirm password is required."),
   })
   .refine((value) => value.newPassword === value.confirmPassword, {
     message: "Passwords do not match.",
     path: ["confirmPassword"],
   });
 
-export const adminDashboardLoginSchema = z.object({
-  email: emailSchema,
-  adminPassword: z.string().min(1, "Admin password is required."),
+export const instructorDashboardLoginSchema = z.object({
+  batchName: batchNameSchema,
+  instructorPassword: z.string().min(1, "Instructor password is required."),
+});
+
+export const instructorChangeBatchNameSchema = z.object({
+  batchName: batchNameSchema,
 });

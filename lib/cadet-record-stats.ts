@@ -4,11 +4,26 @@ type RecordStatSource = {
   cadetId: string;
   category: RecordCategory;
   startAt: Date | null;
+  endAt: Date | null;
   createdAt: Date;
 };
 
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
 function getRecordStatDate(record: Pick<RecordStatSource, "startAt" | "createdAt">) {
   return record.startAt ?? record.createdAt;
+}
+
+function getRecordStatDays(record: Pick<RecordStatSource, "startAt" | "endAt">) {
+  if (record.startAt && record.endAt) {
+    return Math.max(Math.floor((record.endAt.getTime() - record.startAt.getTime()) / DAY_IN_MS) + 1, 1);
+  }
+
+  if (record.startAt || record.endAt) {
+    return 1;
+  }
+
+  return 0;
 }
 
 export async function syncCadetRecordStats(
@@ -33,6 +48,7 @@ export async function syncCadetRecordStats(
       cadetId: true,
       category: true,
       startAt: true,
+      endAt: true,
       createdAt: true,
     },
   });
@@ -43,6 +59,7 @@ export async function syncCadetRecordStats(
       cadetId: string;
       category: RecordStatSource["category"];
       recordCount: number;
+      totalDays: number;
       firstRecordAt: Date;
     }
   >();
@@ -57,12 +74,14 @@ export async function syncCadetRecordStats(
         cadetId: record.cadetId,
         category: record.category,
         recordCount: 1,
+        totalDays: getRecordStatDays(record),
         firstRecordAt: recordDate,
       });
       continue;
     }
 
     existingStat.recordCount += 1;
+    existingStat.totalDays += getRecordStatDays(record);
     if (recordDate < existingStat.firstRecordAt) {
       existingStat.firstRecordAt = recordDate;
     }
@@ -89,7 +108,24 @@ export async function syncCadetRecordStats(
       cadetId: stat.cadetId,
       category: stat.category,
       recordCount: stat.recordCount,
+      totalDays: stat.totalDays,
       firstRecordAt: stat.firstRecordAt,
     })),
   });
+}
+
+export async function syncUserCadetRecordStats(
+  tx: Prisma.TransactionClient,
+  userId: string,
+) {
+  const cadets = await tx.cadet.findMany({
+    where: { userId },
+    select: { id: true },
+  });
+
+  await syncCadetRecordStats(
+    tx,
+    userId,
+    cadets.map((cadet) => cadet.id),
+  );
 }

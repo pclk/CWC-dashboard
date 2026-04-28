@@ -19,5 +19,5 @@ export const NAV_ITEMS: readonly NavigationItem[] = [
   { href: "/current-affairs", label: "Current Affairs", shortLabel: "Current" },
   { href: "/book-in", label: "Book-In", shortLabel: "Book-In" },
   { href: "/settings", label: "Settings", shortLabel: "Settings" },
-  { href: "/admin", label: "Admin", shortLabel: "Admin", separatorBefore: true },
+  { href: "/instructors", label: "Instructors", shortLabel: "Instr", separatorBefore: true },
 ] as const;

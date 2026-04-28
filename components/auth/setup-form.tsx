@@ -29,14 +29,14 @@ export function SetupForm() {
       </div>
 
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-slate-700" htmlFor="email">
-          Email
+        <label className="block text-sm font-medium text-slate-700" htmlFor="batchName">
+          Batch name
         </label>
         <input
-          id="email"
-          name="email"
-          type="email"
-          autoComplete="email"
+          id="batchName"
+          name="batchName"
+          type="text"
+          autoComplete="username"
           required
           className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none transition focus:border-teal-700"
         />

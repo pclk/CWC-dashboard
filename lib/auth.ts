@@ -28,7 +28,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     Credentials({
       name: "Credentials",
       credentials: {
-        email: { label: "Email", type: "email" },
+        batchName: { label: "Batch name", type: "text" },
         password: { label: "Password", type: "password" },
       },
       async authorize(rawCredentials, request) {
@@ -38,10 +38,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null;
         }
 
-        const email = parsed.data.email.toLowerCase();
-
         const user = await prisma.user.findUnique({
-          where: { email },
+          where: { batchName: parsed.data.batchName },
         });
 
         if (!user) {
@@ -70,9 +68,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         return {
           id: user.id,
-          email: user.email,
-          name: user.displayName ?? user.email,
+          name: user.displayName ?? user.batchName,
           displayName: user.displayName,
+          batchName: user.batchName,
           sessionId: userSession.id,
           sessionPasswordFingerprint: getSessionPasswordFingerprint(user.passwordHash),
         };
@@ -102,7 +100,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           revokedAt: true,
           user: {
             select: {
-              email: true,
+              batchName: true,
               displayName: true,
               passwordHash: true,
             },
@@ -147,9 +145,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         });
       }
 
-      token.email = userSession.user.email;
-      token.name = userSession.user.displayName ?? userSession.user.email;
+      token.name = userSession.user.displayName ?? userSession.user.batchName;
       token.displayName = userSession.user.displayName;
+      token.batchName = userSession.user.batchName;
 
       return token;
     },
@@ -159,6 +157,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.sessionId = String(token.sessionId);
         session.user.name =
           typeof token.displayName === "string" ? token.displayName : session.user.name;
+        session.user.batchName =
+          typeof token.batchName === "string" ? token.batchName : session.user.batchName;
       }
 
       return session;
