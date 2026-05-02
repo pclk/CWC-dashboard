@@ -32,6 +32,13 @@ model User {
   settings             UserSettings?
   sessions             UserSession[]
   adminSessions        AdminSession[]
+  cetVenues            CetVenue[]
+  cetAttires           CetAttire[]
+  cetDaySchedules      CetDaySchedule[]
+  cetDayBlocks         CetDayBlock[]
+  cetDayBlockHistory   CetDayBlockHistory[]
+  cetTemplates         CetTemplate[]
+  cetCadetViewStates   CetCadetViewState[]
 }
 
 model UserSession {
@@ -154,6 +161,8 @@ model Cadet {
   appointments Appointment[]
   requests     CadetRequest[]
   nightStudyChoices CadetNightStudyChoice[]
+  cetDayBlockTargets CetDayBlockTargetCadet[]
+  cetViewStates      CetCadetViewState[]
 
   @@index([userId, active])
   @@index([userId, appointmentHolder, active])
@@ -441,4 +450,195 @@ model MessageTemplate {
 
   @@unique([userId, type, name])
   @@index([userId, type])
+}
+
+enum CetActivityType {
+  LAB
+  PT
+  BUNK
+  COOKHOUSE
+  MEDICAL
+  OTHER
+}
+
+enum CetVisibility {
+  COHORT
+  SELECTED_CADETS
+}
+
+enum CetBlockSource {
+  MANUAL
+  TEMPLATE
+  APPOINTMENT_IMPORT
+}
+
+enum CetActorRole {
+  CWC
+  INSTRUCTOR
+  SYSTEM
+}
+
+model CetVenue {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dayBlocks      CetDayBlock[]
+  templateBlocks CetTemplateBlock[]
+
+  @@unique([userId, name])
+  @@index([userId, active])
+}
+
+model CetAttire {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dayBlocks      CetDayBlock[]
+  templateBlocks CetTemplateBlock[]
+
+  @@unique([userId, name])
+  @@index([userId, active])
+}
+
+model CetDaySchedule {
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  blocks CetDayBlock[]
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+
+model CetDayBlock {
+  id             String          @id @default(cuid())
+  userId         String
+  scheduleId     String
+  title          String
+  activityType   CetActivityType
+  venueId        String?
+  attireId       String?
+  requiredItems  String?
+  remarks        String?
+  startAt        DateTime
+  endAt          DateTime
+  visibility     CetVisibility   @default(COHORT)
+  source         CetBlockSource  @default(MANUAL)
+  sourceId       String?
+  createdByRole  CetActorRole
+  createdByName  String
+  updatedByRole  CetActorRole?
+  updatedByName  String?
+  deletedAt      DateTime?
+  deletedByRole  CetActorRole?
+  deletedByName  String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  user         User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schedule     CetDaySchedule           @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  venue        CetVenue?                @relation(fields: [venueId], references: [id], onDelete: SetNull)
+  attire       CetAttire?               @relation(fields: [attireId], references: [id], onDelete: SetNull)
+  targetCadets CetDayBlockTargetCadet[]
+  history      CetDayBlockHistory[]
+
+  @@index([userId, startAt])
+  @@index([scheduleId, deletedAt])
+}
+
+model CetDayBlockTargetCadet {
+  id      String @id @default(cuid())
+  blockId String
+  cadetId String
+
+  block CetDayBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  cadet Cadet       @relation(fields: [cadetId], references: [id], onDelete: Cascade)
+
+  @@unique([blockId, cadetId])
+  @@index([cadetId])
+}
+
+model CetDayBlockHistory {
+  id         String       @id @default(cuid())
+  blockId    String?
+  userId     String
+  action     String
+  summary    String
+  beforeJson Json?
+  afterJson  Json?
+  actorRole  CetActorRole
+  actorName  String
+  createdAt  DateTime     @default(now())
+
+  user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  block CetDayBlock? @relation(fields: [blockId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([blockId, createdAt])
+}
+
+model CetTemplate {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  blocks CetTemplateBlock[]
+
+  @@unique([userId, name])
+  @@index([userId, active])
+}
+
+model CetTemplateBlock {
+  id            String          @id @default(cuid())
+  templateId    String
+  title         String
+  activityType  CetActivityType
+  venueId       String?
+  attireId      String?
+  requiredItems String?
+  remarks       String?
+  startTime     String
+  endTime       String
+  visibility    CetVisibility   @default(COHORT)
+
+  template CetTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  venue    CetVenue?   @relation(fields: [venueId], references: [id], onDelete: SetNull)
+  attire   CetAttire?  @relation(fields: [attireId], references: [id], onDelete: SetNull)
+
+  @@index([templateId])
+}
+
+model CetCadetViewState {
+  id           String   @id @default(cuid())
+  userId       String
+  cadetId      String
+  date         DateTime
+  lastViewedAt DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cadet Cadet @relation(fields: [cadetId], references: [id], onDelete: Cascade)
+
+  @@unique([cadetId, date])
+  @@index([userId, date])
 }

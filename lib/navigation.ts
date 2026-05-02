@@ -10,6 +10,7 @@ export const NAV_ITEMS: readonly NavigationItem[] = [
   { href: "/cwc/cadets", label: "Cadets", shortLabel: "Cadets" },
   { href: "/cwc/records", label: "Records", shortLabel: "Records" },
   { href: "/cwc/appointments", label: "Appointments", shortLabel: "Appts" },
+  { href: "/cwc/cet", label: "CET", shortLabel: "CET" },
   { href: "/cwc/duty-instructors", label: "Duty Instructor", shortLabel: "DI" },
   { href: "/cwc/bunks", label: "Bunks", shortLabel: "Bunks", separatorBefore: true },
   { href: "/cwc/parade-state", label: "Parade State", shortLabel: "Parade" },

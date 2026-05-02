@@ -2,7 +2,7 @@
 
 import { Menu, X } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useId, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useState, useTransition } from "react";
 
 import {
   assignCadetAppointmentHolderAction,
@@ -14,9 +14,21 @@ import {
   type InstructorOverview,
 } from "@/actions/instructors";
 import {
+  getCetEditorPageData,
+  type CetEditorPageData,
+} from "@/actions/cet-day";
+import {
+  getCetTemplateEditorData,
+  type CetTemplateEditorData,
+} from "@/actions/cet-templates";
+import {
   instructorApproveReportSickRequest,
   instructorDeclineRequest,
 } from "@/actions/cadet-requests";
+import { CetEditor } from "@/components/cet/cet-editor";
+import { CetTemplateEditor } from "@/components/cet/cet-template-editor";
+import { CetTimeline } from "@/components/cet/cet-timeline";
+import { getSingaporeIsoDate, getSingaporeToday } from "@/lib/cet";
 import { formatDisplayDateTime } from "@/lib/date";
 import { getRecordCategoryLabel } from "@/lib/record-categories";
 import type { InstructorRememberDuration } from "@/lib/validators/auth";
@@ -35,6 +47,7 @@ type PersonItem = {
 type InstructorSection =
   | "dashboard"
   | "requests"
+  | "cet"
   | "assign_kah"
   | "onboard"
   | "settings";
@@ -49,6 +62,11 @@ const INSTRUCTOR_SECTIONS: Array<{ key: InstructorSection; label: string; descri
     key: "requests",
     label: "Requests",
     description: "Approve or decline trainee submissions",
+  },
+  {
+    key: "cet",
+    label: "CET",
+    description: "Edit daily CET blocks",
   },
   {
     key: "assign_kah",
@@ -853,10 +871,14 @@ function InstructorDashboardSection({
   overview,
   activeStrengthBucketKey,
   onStrengthBucketChange,
+  cetData,
+  onOpenCet,
 }: {
   overview: InstructorOverview;
   activeStrengthBucketKey: InstructorOverview["strengthBuckets"][number]["key"];
   onStrengthBucketChange: (key: InstructorOverview["strengthBuckets"][number]["key"]) => void;
+  cetData: CetEditorPageData | null;
+  onOpenCet: () => void;
 }) {
   return (
     <div className="space-y-6">
@@ -887,6 +909,8 @@ function InstructorDashboardSection({
         onSelect={onStrengthBucketChange}
       />
 
+      <InstructorTodayCetCard cetData={cetData} onOpenCet={onOpenCet} />
+
       <EventTimeline events={overview.timeline} />
 
       <RecordHeatmap heatmap={overview.recordHeatmap} />
@@ -906,6 +930,59 @@ function InstructorDashboardSection({
         </article>
       </section>
     </div>
+  );
+}
+
+function InstructorTodayCetCard({
+  cetData,
+  onOpenCet,
+}: {
+  cetData: CetEditorPageData | null;
+  onOpenCet: () => void;
+}) {
+  const todayIso = getSingaporeIsoDate(getSingaporeToday(new Date()));
+  const showsToday = cetData?.selectedDate === todayIso;
+  const timeline = showsToday ? cetData?.timeline ?? [] : [];
+
+  return (
+    <section className="rounded-[2rem] border border-black/10 bg-white/92 p-5 shadow-sm sm:p-6">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">
+            Today&apos;s CET
+          </p>
+          <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-900">
+            {showsToday
+              ? `${timeline.length} scheduled item${timeline.length === 1 ? "" : "s"}`
+              : "Today's CET"}
+          </h2>
+          <p className="mt-2 text-sm text-slate-600">
+            {showsToday
+              ? "Cohort, targeted, and imported MA/OA blocks for the day."
+              : "Open the CET editor to view today's schedule."}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onOpenCet}
+          className="inline-flex items-center justify-center rounded-2xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-teal-800"
+        >
+          Open CET editor
+        </button>
+      </div>
+
+      {showsToday ? (
+        <div className="max-h-[28rem] overflow-y-auto rounded-2xl border border-black/10 bg-white p-3">
+          <CetTimeline
+            blocks={timeline}
+            date={todayIso}
+            emptyLabel="No CET scheduled"
+            showAudience
+            appointmentsHref="/cwc/appointments"
+          />
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -1656,10 +1733,140 @@ function InstructorSettingsSection({
   );
 }
 
-export function InstructorDashboard({ initialOverview = null }: { initialOverview?: InstructorOverview | null }) {
+function InstructorCetSection({
+  cetData,
+  onCetDataChange,
+  templateData,
+  onTemplateDataChange,
+}: {
+  cetData: CetEditorPageData | null;
+  onCetDataChange: (data: CetEditorPageData | null) => void;
+  templateData: CetTemplateEditorData | null;
+  onTemplateDataChange: (data: CetTemplateEditorData | null) => void;
+}) {
+  const [loading, startTransition] = useTransition();
+  const [status, setStatus] = useState<string | null>(null);
+  const [activeCetTool, setActiveCetTool] = useState<"daily" | "templates">("daily");
+
+  const loadCetDate = useCallback((date?: string) => {
+    startTransition(async () => {
+      try {
+        const data = await getCetEditorPageData(date);
+        onCetDataChange(data);
+        setStatus(null);
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : "Unable to load CET editor.");
+      }
+    });
+  }, [onCetDataChange, startTransition]);
+
+  const loadTemplates = useCallback(() => {
+    startTransition(async () => {
+      try {
+        const data = await getCetTemplateEditorData();
+        onTemplateDataChange(data);
+        setStatus(null);
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : "Unable to load CET templates.");
+      }
+    });
+  }, [onTemplateDataChange, startTransition]);
+
+  useEffect(() => {
+    if (!cetData) {
+      loadCetDate();
+    }
+  }, [cetData, loadCetDate]);
+
+  useEffect(() => {
+    if (activeCetTool === "templates" && !templateData) {
+      loadTemplates();
+    }
+  }, [activeCetTool, loadTemplates, templateData]);
+
+  if (!cetData && activeCetTool === "daily") {
+    return (
+      <section className="rounded-[2rem] border border-black/10 bg-white/92 p-6 shadow-sm">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">
+          Instructor CET
+        </p>
+        <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">CET</h2>
+        <p className="mt-3 rounded-2xl border border-dashed border-black/10 px-4 py-5 text-sm text-slate-500">
+          {loading ? "Loading CET editor..." : status ?? "CET editor is not available."}
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <section className="rounded-[2rem] border border-black/10 bg-white/92 p-2 shadow-sm">
+        <div className="grid gap-2 text-sm font-semibold sm:grid-cols-2">
+          {[
+            { key: "daily" as const, label: "Daily Editor" },
+            { key: "templates" as const, label: "Templates" },
+          ].map((tool) => {
+            const active = activeCetTool === tool.key;
+
+            return (
+              <button
+                key={tool.key}
+                type="button"
+                onClick={() => setActiveCetTool(tool.key)}
+                className={active
+                  ? "rounded-[1.5rem] bg-teal-700 px-4 py-3 text-white shadow-sm"
+                  : "rounded-[1.5rem] px-4 py-3 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"}
+              >
+                {tool.label}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+      {status ? (
+        <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800">
+          {status}
+        </p>
+      ) : null}
+      {activeCetTool === "daily" && cetData ? (
+        <CetEditor
+          selectedDate={cetData.selectedDate}
+          previousWeekDate={cetData.previousWeekDate}
+          nextWeekDate={cetData.nextWeekDate}
+          editorData={cetData.editorData}
+          timeline={cetData.timeline}
+          onDateChange={loadCetDate}
+          onDataChanged={() => loadCetDate(cetData.selectedDate)}
+        />
+      ) : activeCetTool === "templates" && templateData ? (
+        <CetTemplateEditor
+          initialData={templateData}
+          embedded
+          onDataChanged={loadTemplates}
+        />
+      ) : (
+        <section className="rounded-[2rem] border border-black/10 bg-white/92 p-6 shadow-sm">
+          <p className="rounded-2xl border border-dashed border-black/10 px-4 py-5 text-sm text-slate-500">
+            {loading ? "Loading CET templates..." : "CET templates are not available."}
+          </p>
+        </section>
+      )}
+    </div>
+  );
+}
+
+export function InstructorDashboard({
+  initialOverview = null,
+  initialCetData = null,
+}: {
+  initialOverview?: InstructorOverview | null;
+  initialCetData?: CetEditorPageData | null;
+}) {
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState<string | null>(null);
   const [overview, setOverview] = useState<InstructorOverview | null>(initialOverview);
+  const [cetData, setCetData] = useState<CetEditorPageData | null>(initialCetData);
+  const [templateData, setTemplateData] = useState<CetTemplateEditorData | null>(null);
   const [activeSection, setActiveSection] = useState<InstructorSection>("dashboard");
   const [activeStrengthBucketKey, setActiveStrengthBucketKey] =
     useState<InstructorOverview["strengthBuckets"][number]["key"]>(
@@ -1710,6 +1917,7 @@ export function InstructorDashboard({ initialOverview = null }: { initialOvervie
 
                 if (result.ok && result.overview) {
                   setOverview(result.overview);
+                  setCetData(null);
                   setActiveStrengthBucketKey(
                     result.overview.strengthBuckets.find((bucket) => bucket.count > 0)?.key ??
                       "current_fit",
@@ -1837,6 +2045,7 @@ export function InstructorDashboard({ initialOverview = null }: { initialOvervie
     startTransition(async () => {
       await instructorDashboardLogoutAction();
       setOverview(null);
+      setCetData(null);
       setStatus(null);
       setBatchNameValues({
         batchName: "",
@@ -1901,6 +2110,8 @@ export function InstructorDashboard({ initialOverview = null }: { initialOvervie
             overview={overview}
             activeStrengthBucketKey={activeStrengthBucketKey}
             onStrengthBucketChange={setActiveStrengthBucketKey}
+            cetData={cetData}
+            onOpenCet={() => setActiveSection("cet")}
           />
         ) : activeSection === "requests" ? (
           <InstructorRequestsSection
@@ -1917,6 +2128,13 @@ export function InstructorDashboard({ initialOverview = null }: { initialOvervie
                   : current,
               )
             }
+          />
+        ) : activeSection === "cet" ? (
+          <InstructorCetSection
+            cetData={cetData}
+            onCetDataChange={setCetData}
+            templateData={templateData}
+            onTemplateDataChange={setTemplateData}
           />
         ) : activeSection === "assign_kah" ? (
           <InstructorAssignKahSection
